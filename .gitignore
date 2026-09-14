@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env
+.env
+.env.local
+*.local.env
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Uploads (PDFs de nota fiscal, boletos, XML) — nunca versionar dado de usuário
+backend/uploads/
+backend/storage/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker volumes locais
+pgdata/
+redisdata/
+
+
+# Serena (cache local de indexação)
+.serena/cache/
+
+# .mcp.json contém a connection string do Postgres em texto plano (senha local
+# de dev) — não versionar. Recriar com os comandos em claude-code-setup-financeiro.md.
+.mcp.json
+

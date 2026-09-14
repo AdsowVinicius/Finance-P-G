@@ -1,0 +1,164 @@
+erDiagram
+    USUARIOS {
+        uuid id PK
+        string nome
+        string email UK
+        enum papel
+        boolean ativo
+    }
+
+    CONTAS_BANCARIAS {
+        uuid id PK
+        string apelido
+        string banco
+        numeric saldo_inicial
+    }
+
+    CENTROS_CUSTO {
+        uuid id PK
+        string codigo UK
+        string nome
+    }
+
+    PARCEIROS {
+        uuid id PK
+        enum tipo
+        string cnpj_cpf UK
+        string razao_social
+    }
+
+    PROJETOS {
+        uuid id PK
+        string nome
+        uuid cliente_id FK
+        date data_inicio
+        date data_fim_previsto
+        enum status
+    }
+
+    FUNCIONARIOS {
+        uuid id PK
+        string nome
+        string cpf UK
+        uuid projeto_id FK
+        numeric valor_salario
+        date data_contratacao
+        date data_demissao
+        enum status
+        uuid lancamento_recorrente_id FK
+    }
+
+    NOTAS_FISCAIS {
+        uuid id PK
+        uuid parceiro_id FK
+        uuid centro_custo_id FK
+        enum tipo
+        enum tipo_operacao
+        string chave_acesso UK
+        numeric valor_total
+        boolean despesa_fixa
+        boolean despesa_parcelada
+        int numero_parcelas
+        enum status
+        enum status_processamento
+    }
+
+    LANCAMENTOS_RECORRENTES {
+        uuid id PK
+        enum tipo_operacao
+        uuid parceiro_id FK
+        uuid centro_custo_id FK
+        uuid nota_fiscal_origem_id FK
+        uuid projeto_id FK
+        uuid conta_bancaria_id FK
+        numeric valor_parcela
+        int numero_ocorrencias
+        date data_fim
+        enum periodicidade
+        boolean ativo
+    }
+
+    CONTAS_FINANCEIRAS {
+        uuid id PK
+        enum tipo_operacao
+        uuid lancamento_recorrente_id FK
+        uuid nota_fiscal_id FK
+        uuid parceiro_id FK
+        uuid centro_custo_id FK
+        uuid conta_bancaria_id FK
+        int numero_parcela
+        numeric valor
+        date data_vencimento_original
+        date data_vencimento
+        date data_pagamento
+        enum status
+        string boleto_arquivo_path
+    }
+
+    EXTRATOS_IMPORTADOS {
+        uuid id PK
+        uuid conta_bancaria_id FK
+        enum formato
+        enum status
+        uuid importado_por FK
+    }
+
+    LANCAMENTOS_EXTRATO {
+        uuid id PK
+        uuid extrato_importado_id FK
+        uuid conta_bancaria_id FK
+        date data
+        numeric valor
+        enum tipo
+        string fitid
+        enum status_conciliacao
+    }
+
+    CONCILIACOES {
+        uuid id PK
+        uuid lancamento_extrato_id FK
+        uuid conta_financeira_id FK
+        uuid nota_fiscal_id FK
+        numeric valor_conciliado
+        enum tipo_match
+        uuid confirmado_por FK
+    }
+
+    %% -------- Relacionamentos --------
+
+    PARCEIROS ||--o{ PROJETOS : "e cliente de"
+    PARCEIROS ||--o{ NOTAS_FISCAIS : "emite/recebe"
+    PARCEIROS ||--o{ LANCAMENTOS_RECORRENTES : "e parte de"
+    PARCEIROS ||--o{ CONTAS_FINANCEIRAS : "e parte de"
+
+    CENTROS_CUSTO ||--o{ NOTAS_FISCAIS : classifica
+    CENTROS_CUSTO ||--o{ LANCAMENTOS_RECORRENTES : classifica
+    CENTROS_CUSTO ||--o{ CONTAS_FINANCEIRAS : classifica
+
+    PROJETOS ||--o{ FUNCIONARIOS : aloca
+    PROJETOS ||--o{ LANCAMENTOS_RECORRENTES : "gera custo/receita de"
+
+    CONTAS_BANCARIAS ||--o{ LANCAMENTOS_RECORRENTES : "debita/credita em"
+    CONTAS_BANCARIAS ||--o{ CONTAS_FINANCEIRAS : "usada na baixa de"
+    CONTAS_BANCARIAS ||--o{ EXTRATOS_IMPORTADOS : possui
+    CONTAS_BANCARIAS ||--o{ LANCAMENTOS_EXTRATO : possui
+
+    NOTAS_FISCAIS ||--o{ LANCAMENTOS_RECORRENTES : "origina (se parcelada)"
+    NOTAS_FISCAIS ||--o{ CONTAS_FINANCEIRAS : "gera parcela de"
+    NOTAS_FISCAIS ||--o{ CONCILIACOES : "e conciliada em"
+
+    LANCAMENTOS_RECORRENTES ||--o{ CONTAS_FINANCEIRAS : "materializa ocorrencias em"
+    LANCAMENTOS_RECORRENTES |o--o| FUNCIONARIOS : "e salario de"
+
+    CONTAS_FINANCEIRAS ||--o{ CONCILIACOES : "e baixada por"
+
+    EXTRATOS_IMPORTADOS ||--o{ LANCAMENTOS_EXTRATO : contem
+
+    LANCAMENTOS_EXTRATO ||--o{ CONCILIACOES : "e casado em"
+
+    USUARIOS ||--o{ NOTAS_FISCAIS : cadastra
+    USUARIOS ||--o{ LANCAMENTOS_RECORRENTES : cadastra
+    USUARIOS ||--o{ CONTAS_FINANCEIRAS : cadastra
+    USUARIOS ||--o{ FUNCIONARIOS : cadastra
+    USUARIOS ||--o{ EXTRATOS_IMPORTADOS : importa
+    USUARIOS ||--o{ CONCILIACOES : confirma

@@ -1,0 +1,39 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { Layout } from './components/Layout'
+import { ProtectedRoute } from './components/ProtectedRoute'
+import { useAuth } from './contexts/AuthContext'
+import { CentrosCustoPage } from './pages/CentrosCustoPage'
+import { ContasBancariasPage } from './pages/ContasBancariasPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { ExtratosPage } from './pages/ExtratosPage'
+import { LancamentosRecorrentesPage } from './pages/LancamentosRecorrentesPage'
+import { LoginPage } from './pages/LoginPage'
+import { NotasFiscaisPage } from './pages/NotasFiscaisPage'
+import { ParceirosPage } from './pages/ParceirosPage'
+
+function App() {
+  const { usuario } = useAuth()
+
+  return (
+    <Routes>
+      <Route path="/login" element={usuario ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/parceiros" element={<ParceirosPage />} />
+        <Route path="/centros-custo" element={<CentrosCustoPage />} />
+        <Route path="/contas-bancarias" element={<ContasBancariasPage />} />
+        <Route path="/lancamentos-recorrentes" element={<LancamentosRecorrentesPage />} />
+        <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
+        <Route path="/extratos" element={<ExtratosPage />} />
+      </Route>
+    </Routes>
+  )
+}
+
+export default App

@@ -1,0 +1,52 @@
+flowchart TB
+    subgraph FRONT["Frontend — React + Vite"]
+        UI["SPA: telas de nota, contas a pagar/receber,\nconciliação, dashboard de vencimento"]
+    end
+
+    subgraph API["Backend — FastAPI"]
+        AuthR["Router: Auth (JWT)"]
+        NotaR["Router: Notas Fiscais"]
+        ContaR["Router: Contas a Pagar/Receber"]
+        ExtratoR["Router: Extrato/Conciliação"]
+        FuncR["Router: Funcionários/Projetos"]
+        RelR["Router: Relatórios/Dashboard"]
+    end
+
+    subgraph SVC["Camada de Serviço — regra de negócio pura, testável isolada"]
+        DiaUtil["DiaUtilCalculator\n(workalendar, sáb/dom/feriado)"]
+        Recorrencia["RecorrenciaService\n(gera parcelas até numero_ocorrencias\nou data_fim)"]
+        Matcher["ConciliacaoMatcher\n(exato / tolerância / parcial)"]
+        NotaSvc["NotaFiscalService\n(orquestra extração + parse)"]
+        ExtratoParser["ExtratoParserService\n(Registry: provider OFX / provider CSV)"]
+    end
+
+    subgraph ASYNC["Celery Workers + Redis (broker)"]
+        TaskNota["task: processar_nota_fiscal\n(extrai chave → chama API → parse XML)"]
+        TaskExtrato["task: processar_importacao_extrato\n(parse + dispara matching automático)"]
+        TaskRecorrencia["task: gerar_ocorrencias_recorrencia"]
+        Beat["Celery Beat\n(job diário: alerta boletos a vencer)"]
+    end
+
+    subgraph EXT["Externo"]
+        NFeAPI["API de Consulta NFe\n(opção 3 — sem certificado)"]
+    end
+
+    DB[("PostgreSQL")]
+
+    UI --> API
+    API --> SVC
+    SVC --> DB
+
+    NotaR -. "upload PDF, enfileira" .-> TaskNota
+    ExtratoR -. "upload OFX/CSV, enfileira" .-> TaskExtrato
+    ContaR -. "cria lançamento recorrente, enfileira" .-> TaskRecorrencia
+
+    TaskNota --> NotaSvc --> NFeAPI
+    TaskExtrato --> ExtratoParser
+    TaskExtrato --> Matcher
+    TaskRecorrencia --> Recorrencia --> DiaUtil
+
+    TaskNota --> DB
+    TaskExtrato --> DB
+    TaskRecorrencia --> DB
+    Beat --> TaskRecorrencia

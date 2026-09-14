@@ -1,0 +1,32 @@
+erDiagram
+    USUARIO ||--o{ NOTA_FISCAL : cadastra
+    USUARIO ||--o{ CONTA_A_PAGAR_RECEBER : cadastra
+    USUARIO ||--o{ FUNCIONARIO : cadastra
+    USUARIO ||--o{ EXTRATO_BANCARIO : importa
+    USUARIO ||--o{ CONCILIACAO : confirma
+
+    PARCEIRO ||--o{ PROJETO : "e cliente de"
+    PARCEIRO ||--o{ NOTA_FISCAL : "emite ou recebe"
+    PARCEIRO ||--o{ CONTA_A_PAGAR_RECEBER : "e parte de"
+
+    CENTRO_DE_CUSTO ||--o{ NOTA_FISCAL : classifica
+    CENTRO_DE_CUSTO ||--o{ CONTA_A_PAGAR_RECEBER : classifica
+
+    PROJETO ||--o{ FUNCIONARIO : aloca
+    PROJETO ||--o{ LANCAMENTO_RECORRENTE : "gera custo ou receita de"
+
+    FUNCIONARIO ||--o| LANCAMENTO_RECORRENTE : "tem salario como"
+
+    NOTA_FISCAL ||--o{ LANCAMENTO_RECORRENTE : "pode gerar (se parcelada)"
+    NOTA_FISCAL ||--o{ CONTA_A_PAGAR_RECEBER : "gera parcela de"
+    NOTA_FISCAL ||--o{ CONCILIACAO : "e confirmada em"
+
+    LANCAMENTO_RECORRENTE ||--o{ CONTA_A_PAGAR_RECEBER : "materializa ocorrencias como"
+
+    CONTA_BANCARIA ||--o{ EXTRATO_BANCARIO : possui
+    CONTA_BANCARIA ||--o{ CONTA_A_PAGAR_RECEBER : "usada para baixa de"
+
+    EXTRATO_BANCARIO ||--o{ LANCAMENTO_DE_EXTRATO : contem
+
+    LANCAMENTO_DE_EXTRATO ||--o{ CONCILIACAO : "e casado com"
+    CONTA_A_PAGAR_RECEBER ||--o{ CONCILIACAO : "e baixada por"
