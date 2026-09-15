@@ -56,11 +56,11 @@ cd backend
 Esta máquina já tinha um **PostgreSQL 16** instalado (de outro projeto, porta 5432 padrão) — em vez de instalar uma segunda instância, foi criado um banco e um usuário dedicados **isolados** nele:
 
 ```sql
-CREATE ROLE pgfinance WITH LOGIN PASSWORD 'SUA_SENHA_AQUI';
+CREATE ROLE pgfinance WITH LOGIN PASSWORD 'escolha-uma-senha-aqui';
 CREATE DATABASE pgfinance OWNER pgfinance;
 ```
 
-Connection string (já em `backend/.env`): `postgresql+psycopg2://pgfinance:SUA_SENHA_AQUI@localhost:5432/pgfinance`.
+Connection string (ajuste a senha em `backend/.env`): `postgresql+psycopg2://pgfinance:escolha-uma-senha-aqui@localhost:5432/pgfinance`.
 
 Se for rodar em outra máquina sem Postgres nenhum: instale a versão 15+ (`winget install PostgreSQL.PostgreSQL.15`) e ajuste `DATABASE_URL` em `backend/.env`.
 
