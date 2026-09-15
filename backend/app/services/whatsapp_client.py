@@ -8,7 +8,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_GRAPH_API_BASE = "https://graph.facebook.com/v21.0"
+_GRAPH_API_BASE = "https://graph.facebook.com/v25.0"
 
 
 def enviar_mensagem_texto(telefone: str, texto: str) -> None:
