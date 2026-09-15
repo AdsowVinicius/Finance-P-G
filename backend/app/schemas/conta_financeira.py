@@ -44,6 +44,7 @@ class ContaFinanceiraRead(BaseModel):
     data_vencimento: date
     data_pagamento: date | None
     valor_pago: Decimal | None
+    juros_pago: Decimal | None
     status: StatusConta
     forma_baixa: FormaBaixa | None
     forma_pagamento: FormaPagamento | None

@@ -65,7 +65,28 @@ def resumo(db: Session) -> dict[str, Any]:
         "total_a_receber_aberto": soma_aberta(TipoOperacaoNota.saida),
         "contas_atrasadas_qtd": qtd_atrasadas,
         "contas_atrasadas_total": Decimal(total_atrasadas),
+        "juros_pagos_mes": juros_pagos_mes(db, inicio_mes, fim_mes),
     }
+
+
+def juros_pagos_mes(db: Session, inicio_mes: date, fim_mes: date) -> Decimal:
+    """Soma de (valor_pago - valor) das despesas pagas no mês onde se pagou
+    a mais que a parcela original (boleto vencido, multa/juros etc.) —
+    ignora os casos em que se pagou menos (desconto), que não é 'juros'.
+    """
+    diferenca = ContaFinanceira.valor_pago - ContaFinanceira.valor
+    total = (
+        db.query(func.coalesce(func.sum(diferenca), 0))
+        .filter(
+            ContaFinanceira.tipo_operacao == TipoOperacaoNota.entrada,
+            ContaFinanceira.status == StatusConta.pago,
+            ContaFinanceira.data_pagamento >= inicio_mes,
+            ContaFinanceira.data_pagamento <= fim_mes,
+            ContaFinanceira.valor_pago > ContaFinanceira.valor,
+        )
+        .scalar()
+    )
+    return Decimal(total)
 
 
 def evolucao_mensal(db: Session, meses: int = 6) -> list[dict[str, Any]]:

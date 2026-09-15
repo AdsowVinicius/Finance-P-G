@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react'
+import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Percent, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
   Bar,
@@ -118,7 +118,7 @@ export function IndicadoresPage() {
         <p className="text-sm text-slate-500">Visão geral financeira — saldo, evolução e distribuição por centro de custo.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
           titulo="Saldo do mês"
           valor={formatarMoeda(resumo.saldo_mes)}
@@ -146,6 +146,13 @@ export function IndicadoresPage() {
           icone={AlertTriangle}
           corIcone="text-amber-600"
           corFundo="bg-amber-100"
+        />
+        <KpiCard
+          titulo="Juros pagos (mês)"
+          valor={formatarMoeda(resumo.juros_pagos_mes)}
+          icone={Percent}
+          corIcone="text-orange-600"
+          corFundo="bg-orange-100"
         />
       </div>
 

@@ -125,6 +125,7 @@ export function RelatoriosPage() {
   // entrada = despesa (a pagar), saida = receita (a receber) — schema.sql
   const totalDespesa = contas.filter((c) => c.tipo_operacao === 'entrada').reduce((s, c) => s + Number(c.valor), 0)
   const totalReceita = contas.filter((c) => c.tipo_operacao === 'saida').reduce((s, c) => s + Number(c.valor), 0)
+  const totalJuros = contas.reduce((s, c) => s + (c.juros_pago ? Number(c.juros_pago) : 0), 0)
 
   return (
     <div>
@@ -296,6 +297,11 @@ export function RelatoriosPage() {
         <span className="text-slate-800">
           Saldo: <strong>{formatarMoeda(String(totalReceita - totalDespesa))}</strong>
         </span>
+        {totalJuros !== 0 && (
+          <span className="text-orange-700">
+            Juros/Desconto: <strong>{formatarMoeda(String(totalJuros))}</strong>
+          </span>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70">
@@ -309,19 +315,20 @@ export function RelatoriosPage() {
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2">Forma pgto.</th>
               <th className="px-4 py-2 text-right">Valor</th>
+              <th className="px-4 py-2 text-right">Juros/Desconto</th>
             </tr>
           </thead>
           <tbody>
             {carregando && (
               <tr>
-                <td className="px-4 py-3 text-slate-400" colSpan={7}>
+                <td className="px-4 py-3 text-slate-400" colSpan={8}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!carregando && contas.length === 0 && (
               <tr>
-                <td className="px-4 py-3 text-slate-400" colSpan={7}>
+                <td className="px-4 py-3 text-slate-400" colSpan={8}>
                   Nenhum lançamento encontrado com esses filtros.
                 </td>
               </tr>
@@ -353,6 +360,16 @@ export function RelatoriosPage() {
                   {c.forma_pagamento ? FORMA_PAGAMENTO_LABEL[c.forma_pagamento] : '—'}
                 </td>
                 <td className="px-4 py-2 text-right font-medium">{formatarMoeda(c.valor)}</td>
+                <td className="px-4 py-2 text-right">
+                  {c.juros_pago === null ? (
+                    <span className="text-slate-300">—</span>
+                  ) : (
+                    <span className={Number(c.juros_pago) > 0 ? 'text-red-600' : Number(c.juros_pago) < 0 ? 'text-emerald-600' : 'text-slate-400'}>
+                      {Number(c.juros_pago) > 0 && '+'}
+                      {formatarMoeda(c.juros_pago)}
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

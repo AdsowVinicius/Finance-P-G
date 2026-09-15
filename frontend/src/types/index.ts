@@ -85,6 +85,7 @@ export interface ContaFinanceira {
   data_vencimento: string
   data_pagamento: string | null
   valor_pago: string | null
+  juros_pago: string | null
   status: StatusConta
   forma_baixa: FormaBaixa | null
   forma_pagamento: FormaPagamento | null
@@ -154,6 +155,7 @@ export interface ResumoIndicadores {
   total_a_receber_aberto: string
   contas_atrasadas_qtd: number
   contas_atrasadas_total: string
+  juros_pagos_mes: string
 }
 
 export interface PontoEvolucaoMensal {

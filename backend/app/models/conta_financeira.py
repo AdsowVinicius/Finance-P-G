@@ -47,3 +47,12 @@ class ContaFinanceira(Base):
     criado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+
+    @property
+    def juros_pago(self) -> Decimal | None:
+        """valor_pago - valor: positivo = pagou juros/multa em cima da
+        parcela original, negativo = conseguiu desconto. Null enquanto não
+        for paga (valor_pago só existe depois da baixa)."""
+        if self.valor_pago is None:
+            return None
+        return self.valor_pago - self.valor

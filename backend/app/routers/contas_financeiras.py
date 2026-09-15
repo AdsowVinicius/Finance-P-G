@@ -145,6 +145,7 @@ def exportar_csv(
             ContaFinanceira.descricao,
             Parceiro.razao_social,
             ContaFinanceira.valor,
+            ContaFinanceira.valor_pago,
             ContaFinanceira.data_vencimento,
             ContaFinanceira.data_pagamento,
             ContaFinanceira.status,
@@ -164,6 +165,8 @@ def exportar_csv(
             "Descrição",
             "Parceiro",
             "Valor",
+            "Valor pago",
+            "Juros/Desconto",
             "Vencimento",
             "Pagamento",
             "Status",
@@ -172,12 +175,15 @@ def exportar_csv(
         ]
     )
     for linha in linhas:
+        juros = linha.valor_pago - linha.valor if linha.valor_pago is not None else None
         escritor.writerow(
             [
                 "Despesa" if linha.tipo_operacao == TipoOperacaoNota.entrada else "Receita",
                 linha.descricao,
                 linha.razao_social,
                 str(linha.valor).replace(".", ","),
+                str(linha.valor_pago).replace(".", ",") if linha.valor_pago is not None else "",
+                str(juros).replace(".", ",") if juros is not None else "",
                 linha.data_vencimento.isoformat(),
                 linha.data_pagamento.isoformat() if linha.data_pagamento else "",
                 linha.status.value,

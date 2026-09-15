@@ -9,6 +9,7 @@ class ResumoIndicadores(BaseModel):
     total_a_receber_aberto: Decimal
     contas_atrasadas_qtd: int
     contas_atrasadas_total: Decimal
+    juros_pagos_mes: Decimal
 
 
 class PontoEvolucaoMensal(BaseModel):
