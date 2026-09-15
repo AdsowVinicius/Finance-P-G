@@ -58,7 +58,7 @@ export function ContasBancariasPage() {
         <h2 className="text-lg font-semibold text-slate-800">Contas Bancárias</h2>
         <button
           onClick={() => setMostrarForm((v) => !v)}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
+          className="rounded bg-brand-700 px-3 py-1.5 text-sm text-white hover:bg-brand-800"
         >
           {mostrarForm ? 'Cancelar' : 'Nova conta bancária'}
         </button>
@@ -115,16 +115,16 @@ export function ContasBancariasPage() {
           </div>
           <button
             type="submit"
-            className="mt-4 rounded bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800"
+            className="mt-4 rounded bg-brand-700 px-4 py-2 text-sm text-white hover:bg-brand-800"
           >
             Salvar
           </button>
         </form>
       )}
 
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70">
         <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-left text-slate-600">
+          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-2">Apelido</th>
               <th className="px-4 py-2">Banco</th>

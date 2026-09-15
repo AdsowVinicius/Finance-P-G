@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+@theme {
+  /* Paleta extraída da logo da P&G Engenharia — azul-marinho profundo com acento em azul mais claro */
+  --color-brand-950: #081b36;
+  --color-brand-900: #0d2a52;
+  --color-brand-800: #123a6e;
+  --color-brand-700: #184a8c;
+  --color-brand-600: #205ba8;
+  --color-brand-500: #2d72c4;
+  --color-brand-400: #5a92d6;
+  --color-brand-300: #8fb6e6;
+  --color-brand-100: #dfeaf8;
+  --color-brand-50: #f2f6fc;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-feature-settings: "cv11", "ss01";
+}

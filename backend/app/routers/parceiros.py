@@ -7,13 +7,16 @@ from app.core.dependencies import get_current_user, require_write_access
 from app.database import get_db
 from app.models.parceiro import Parceiro
 from app.schemas.parceiro import ParceiroCreate, ParceiroRead, ParceiroUpdate
+from app.services.nota_fiscal_service import CNPJ_SENTINELA
 
 router = APIRouter(prefix="/parceiros", tags=["parceiros"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("", response_model=list[ParceiroRead])
 def listar_parceiros(apenas_ativos: bool = True, db: Session = Depends(get_db)) -> list[Parceiro]:
-    query = db.query(Parceiro)
+    # o parceiro sentinela é um placeholder interno (nota fiscal aguardando
+    # a API resolver o fornecedor real) — nunca deve aparecer pro usuário.
+    query = db.query(Parceiro).filter(Parceiro.cnpj_cpf != CNPJ_SENTINELA)
     if apenas_ativos:
         query = query.filter(Parceiro.ativo.is_(True))
     return query.order_by(Parceiro.razao_social).all()

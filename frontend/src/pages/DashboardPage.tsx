@@ -74,7 +74,7 @@ function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: Se
   }
 
   return (
-    <div className="rounded-lg bg-white shadow">
+    <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70">
       <div className={`flex items-center justify-between rounded-t-lg px-4 py-3 ${corClasse}`}>
         <h3 className="font-semibold">{titulo}</h3>
         <span className="text-sm font-medium">
@@ -87,50 +87,46 @@ function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: Se
         <ul className="divide-y divide-slate-100">
           {contas.map((conta) => (
             <li key={conta.id} className="px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-800">
-                    {conta.descricao}
-                    {conta.total_parcelas > 1 && (
-                      <span className="text-slate-400"> ({conta.numero_parcela}/{conta.total_parcelas})</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {nomesParceiros[conta.parceiro_id] ?? '—'} · vence {formatarData(conta.data_vencimento)}
-                    {conta.boleto_arquivo_path && (
-                      <>
-                        {' · '}
-                        <a
-                          href={`${API_URL}/storage/${conta.boleto_arquivo_path}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-slate-700 underline"
-                        >
-                          ver boleto
-                        </a>
-                      </>
-                    )}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-800">{formatarMoeda(conta.valor)}</span>
-                  {contaEmBaixa !== conta.id && contaEmBoleto !== conta.id && (
-                    <>
-                      <button
-                        onClick={() => iniciarBoleto(conta)}
-                        className="rounded bg-slate-100 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-200"
-                      >
-                        {conta.boleto_arquivo_path ? 'Trocar boleto' : 'Anexar boleto'}
-                      </button>
-                      <button
-                        onClick={() => iniciarBaixa(conta)}
-                        className="rounded bg-slate-900 px-2.5 py-1 text-xs text-white hover:bg-slate-800"
-                      >
-                        Dar baixa
-                      </button>
-                    </>
-                  )}
-                </div>
+              <p className="text-sm font-medium text-slate-800">
+                {conta.descricao}
+                {conta.total_parcelas > 1 && (
+                  <span className="text-slate-400"> ({conta.numero_parcela}/{conta.total_parcelas})</span>
+                )}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {nomesParceiros[conta.parceiro_id] ?? '—'} · vence {formatarData(conta.data_vencimento)}
+                {conta.boleto_arquivo_path && (
+                  <>
+                    {' · '}
+                    <a
+                      href={`${API_URL}/storage/${conta.boleto_arquivo_path}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-brand-700 underline"
+                    >
+                      ver boleto
+                    </a>
+                  </>
+                )}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-slate-800">{formatarMoeda(conta.valor)}</span>
+                {contaEmBaixa !== conta.id && contaEmBoleto !== conta.id && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => iniciarBoleto(conta)}
+                      className="rounded bg-slate-100 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-200"
+                    >
+                      {conta.boleto_arquivo_path ? 'Trocar boleto' : 'Anexar boleto'}
+                    </button>
+                    <button
+                      onClick={() => iniciarBaixa(conta)}
+                      className="rounded bg-brand-700 px-2.5 py-1 text-xs text-white hover:bg-brand-800"
+                    >
+                      Dar baixa
+                    </button>
+                  </div>
+                )}
               </div>
               {contaEmBaixa === conta.id && (
                 <div className="mt-3 flex flex-wrap items-end gap-2 rounded bg-slate-50 p-3">

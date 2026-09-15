@@ -48,7 +48,7 @@ function ChaveManualForm({ notaId, onSalvo }: { notaId: string; onSalvo: () => v
       <button
         onClick={salvar}
         disabled={chave.length !== 44}
-        className="rounded bg-slate-900 px-2.5 py-1 text-xs text-white hover:bg-slate-800 disabled:opacity-40"
+        className="rounded bg-brand-700 px-2.5 py-1 text-xs text-white hover:bg-brand-800 disabled:opacity-40"
       >
         Salvar chave
       </button>
@@ -74,7 +74,7 @@ function ReprocessarButton({ notaId, onReprocessado }: { notaId: string; onRepro
     <button
       onClick={reprocessar}
       disabled={enviando}
-      className="mt-2 rounded bg-slate-900 px-2.5 py-1 text-xs text-white hover:bg-slate-800 disabled:opacity-40"
+      className="mt-2 rounded bg-brand-700 px-2.5 py-1 text-xs text-white hover:bg-brand-800 disabled:opacity-40"
     >
       {enviando ? 'Reprocessando...' : 'Tentar de novo'}
     </button>
@@ -119,7 +119,7 @@ function BoletoForm({ contaId, onSalvo }: { contaId: string; onSalvo: () => void
       <button
         onClick={salvar}
         disabled={!arquivo || enviando}
-        className="rounded bg-slate-900 px-2 py-1 text-xs text-white hover:bg-slate-800 disabled:opacity-40"
+        className="rounded bg-brand-700 px-2 py-1 text-xs text-white hover:bg-brand-800 disabled:opacity-40"
       >
         {enviando ? '...' : 'Salvar'}
       </button>
@@ -294,7 +294,7 @@ export function NotasFiscaisPage() {
         <h2 className="text-lg font-semibold text-slate-800">Notas Fiscais</h2>
         <button
           onClick={() => setMostrarForm((v) => !v)}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
+          className="rounded bg-brand-700 px-3 py-1.5 text-sm text-white hover:bg-brand-800"
         >
           {mostrarForm ? 'Cancelar' : 'Cadastrar nota fiscal'}
         </button>
@@ -432,16 +432,16 @@ export function NotasFiscaisPage() {
           <button
             type="submit"
             disabled={enviando}
-            className="mt-4 rounded bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="mt-4 rounded bg-brand-700 px-4 py-2 text-sm text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {enviando ? 'Enviando...' : 'Cadastrar'}
           </button>
         </form>
       )}
 
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70">
         <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-left text-slate-600">
+          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-2">Parceiro</th>
               <th className="px-4 py-2">Valor</th>
