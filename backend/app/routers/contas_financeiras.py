@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_write_access
 from app.core.storage import salvar_arquivo_upload
 from app.database import get_db
+from app.models.categoria_lancamento import CategoriaLancamento
 from app.models.conta_financeira import ContaFinanceira
 from app.models.enums import FormaBaixa, FormaPagamento, StatusConta, TipoOperacaoNota
 from app.models.parceiro import Parceiro
@@ -277,11 +278,16 @@ def criar_conta_financeira_manual(
     db: Session = Depends(get_db),
     usuario_atual: Usuario = Depends(get_current_user),
 ) -> ContaFinanceira:
-    data_ajustada = DiaUtilCalculator().proximo_dia_util(dados.data_vencimento)
+    categoria = db.get(CategoriaLancamento, dados.categoria_id) if dados.categoria_id else None
+    if categoria is not None and categoria.ativo:
+        data_ajustada = DiaUtilCalculator().ajustar_por_categoria(dados.data_vencimento, categoria.regra_dia_util)
+    else:
+        data_ajustada = DiaUtilCalculator().proximo_dia_util(dados.data_vencimento)
     conta = ContaFinanceira(
         tipo_operacao=dados.tipo_operacao,
         parceiro_id=dados.parceiro_id,
         centro_custo_id=dados.centro_custo_id,
+        categoria_id=dados.categoria_id,
         descricao=dados.descricao,
         valor=dados.valor,
         data_vencimento_original=dados.data_vencimento,

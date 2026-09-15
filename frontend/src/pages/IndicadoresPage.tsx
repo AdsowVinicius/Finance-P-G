@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 import { api } from '../lib/api'
-import type { ItemCentroCusto, ItemStatusNota, PontoEvolucaoMensal, ResumoIndicadores } from '../types'
+import type { ItemCentroCusto, ItemGastoPrevistoDia, ItemStatusNota, PontoEvolucaoMensal, ResumoIndicadores } from '../types'
 
 const CORES_STATUS: Record<string, string> = {
   pendente: '#94a3b8',
@@ -44,6 +44,56 @@ function formatarMes(mes: string): string {
   const [ano, m] = mes.split('-')
   const nomes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
   return `${nomes[Number(m) - 1]}/${ano.slice(2)}`
+}
+
+type Granularidade = 'dia' | 'semana' | 'dia_semana'
+
+const DIAS_SEMANA_LABEL = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const ORDEM_SEMANA = [1, 2, 3, 4, 5, 6, 0] // reordena getDay() (0=dom) pra começar na segunda
+
+function diaDoMes(dataIso: string): number {
+  return Number(dataIso.slice(8, 10))
+}
+
+function diaDaSemana(dataIso: string): number {
+  const [ano, mes, dia] = dataIso.split('-').map(Number)
+  return new Date(ano, mes - 1, dia).getDay()
+}
+
+function ultimoDiaDoMes(mesReferencia: string): number {
+  const [ano, mes] = mesReferencia.split('-').map(Number)
+  return new Date(ano, mes, 0).getDate()
+}
+
+function agruparGastosPrevistos(
+  mesReferencia: string,
+  itens: ItemGastoPrevistoDia[],
+  granularidade: Granularidade,
+): { rotulo: string; valor: number }[] {
+  if (!mesReferencia) return []
+
+  if (granularidade === 'dia') {
+    const totalPorDia = new Map(itens.map((i) => [diaDoMes(i.data), Number(i.total)]))
+    return Array.from({ length: ultimoDiaDoMes(mesReferencia) }, (_, idx) => ({
+      rotulo: String(idx + 1),
+      valor: totalPorDia.get(idx + 1) ?? 0,
+    }))
+  }
+
+  if (granularidade === 'semana') {
+    const numSemanas = Math.ceil(ultimoDiaDoMes(mesReferencia) / 7)
+    const totais = Array.from({ length: numSemanas }, () => 0)
+    for (const item of itens) {
+      totais[Math.ceil(diaDoMes(item.data) / 7) - 1] += Number(item.total)
+    }
+    return totais.map((valor, idx) => ({ rotulo: `Sem ${idx + 1}`, valor }))
+  }
+
+  const totais = new Array(7).fill(0)
+  for (const item of itens) {
+    totais[diaDaSemana(item.data)] += Number(item.total)
+  }
+  return ORDEM_SEMANA.map((idx) => ({ rotulo: DIAS_SEMANA_LABEL[idx], valor: totais[idx] }))
 }
 
 interface KpiCardProps {
@@ -77,22 +127,41 @@ export function IndicadoresPage() {
   const [notasPorStatus, setNotasPorStatus] = useState<ItemStatusNota[]>([])
   const [carregando, setCarregando] = useState(true)
 
+  const [mesGastosPrevistos, setMesGastosPrevistos] = useState('')
+  const [gastosPrevistos, setGastosPrevistos] = useState<ItemGastoPrevistoDia[]>([])
+  const [granularidade, setGranularidade] = useState<Granularidade>('dia')
+
   useEffect(() => {
     async function carregar() {
-      const [resumoRes, evolucaoRes, centroCustoRes, notasRes] = await Promise.all([
+      const [resumoRes, evolucaoRes, centroCustoRes, notasRes, dataAtualRes] = await Promise.all([
         api.get<ResumoIndicadores>('/indicadores/resumo'),
         api.get<PontoEvolucaoMensal[]>('/indicadores/evolucao-mensal', { params: { meses: 6 } }),
         api.get<ItemCentroCusto[]>('/indicadores/por-centro-custo'),
         api.get<ItemStatusNota[]>('/indicadores/notas-por-status'),
+        api.get<{ data: string }>('/sistema/data-atual'),
       ])
       setResumo(resumoRes.data)
       setEvolucao(evolucaoRes.data)
       setPorCentroCusto(centroCustoRes.data)
       setNotasPorStatus(notasRes.data)
       setCarregando(false)
+
+      const mesAtual = dataAtualRes.data.data.slice(0, 7)
+      setMesGastosPrevistos(mesAtual)
+      const gastosRes = await api.get<ItemGastoPrevistoDia[]>('/indicadores/gastos-previstos-por-dia', {
+        params: { mes: mesAtual },
+      })
+      setGastosPrevistos(gastosRes.data)
     }
     carregar()
   }, [])
+
+  async function mudarMesGastosPrevistos(mes: string) {
+    setMesGastosPrevistos(mes)
+    if (!mes) return
+    const { data } = await api.get<ItemGastoPrevistoDia[]>('/indicadores/gastos-previstos-por-dia', { params: { mes } })
+    setGastosPrevistos(data)
+  }
 
   if (carregando || !resumo) {
     return <p className="text-sm text-slate-400">Carregando...</p>
@@ -105,6 +174,7 @@ export function IndicadoresPage() {
   }))
 
   const dadosCentroCusto = porCentroCusto.map((c) => ({ nome: c.centro_custo, valor: Number(c.total) }))
+  const dadosGastosPrevistos = agruparGastosPrevistos(mesGastosPrevistos, gastosPrevistos, granularidade)
   const dadosStatus = notasPorStatus.map((s) => ({
     nome: STATUS_LABEL[s.status] ?? s.status,
     valor: s.quantidade,
@@ -219,6 +289,47 @@ export function IndicadoresPage() {
                   <Cell key={i} fill={CORES_CENTRO_CUSTO[i % CORES_CENTRO_CUSTO.length]} />
                 ))}
               </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-slate-700">Gastos previstos por dia do mês</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="month"
+              value={mesGastosPrevistos}
+              onChange={(e) => mudarMesGastosPrevistos(e.target.value)}
+              className="rounded border border-slate-300 px-2 py-1 text-sm"
+            />
+            <select
+              value={granularidade}
+              onChange={(e) => setGranularidade(e.target.value as Granularidade)}
+              className="rounded border border-slate-300 px-2 py-1 text-sm"
+            >
+              <option value="dia">Por dia</option>
+              <option value="semana">Por semana</option>
+              <option value="dia_semana">Por dia da semana</option>
+            </select>
+          </div>
+        </div>
+        {dadosGastosPrevistos.every((d) => d.valor === 0) ? (
+          <p className="py-10 text-center text-sm text-slate-400">Sem gastos previstos nesse mês.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={dadosGastosPrevistos}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="rotulo" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => formatarMoedaCompacta(v)}
+              />
+              <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
+              <Bar dataKey="valor" fill="#dc2626" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

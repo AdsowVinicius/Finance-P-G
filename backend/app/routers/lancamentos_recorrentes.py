@@ -47,7 +47,7 @@ def criar_lancamento_recorrente(
     db.add(lancamento)
     db.flush()  # garante lancamento.id antes de gerar as parcelas
 
-    parcelas = RecorrenciaService().gerar_parcelas(lancamento)
+    parcelas = RecorrenciaService().gerar_parcelas(lancamento, db=db)
     db.add_all(parcelas)
 
     auditoria_service.registrar_criacao(db, usuario_atual.id, "lancamentos_recorrentes", lancamento)

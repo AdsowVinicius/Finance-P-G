@@ -2,6 +2,8 @@ from datetime import date, timedelta
 
 from workalendar.america import Brazil
 
+from app.models.enums import RegraDiaUtilCategoria
+
 
 class DiaUtilCalculator:
     """Único lugar do sistema que decide o que é dia útil no Brasil.
@@ -22,3 +24,25 @@ class DiaUtilCalculator:
 
     def eh_dia_util(self, data: date) -> bool:
         return self._calendario.is_working_day(data)
+
+    def ajustar_por_categoria(self, data: date, regra: RegraDiaUtilCategoria) -> date:
+        """Deslocamento alternativo, usado só quando o lançamento tem uma
+        categoria vinculada — não mexe em proximo_dia_util(), que continua
+        sendo o padrão pra lançamento sem categoria.
+
+        - funcionario: sábado conta como dia útil (só domingo/feriado empurra,
+          pro próximo dia útil real via workalendar — sábado nunca empurra).
+        - bancaria: só segunda a sexta; cair no sábado ou domingo empurra pra
+          trás, até a sexta-feira anterior (nunca pra frente).
+        """
+        if regra == RegraDiaUtilCategoria.funcionario:
+            ajustada = data
+            while ajustada.weekday() != 5 and not self._calendario.is_working_day(ajustada):
+                ajustada += timedelta(days=1)
+            return ajustada
+        if regra == RegraDiaUtilCategoria.bancaria:
+            ajustada = data
+            while ajustada.weekday() >= 5:  # 5=sábado, 6=domingo
+                ajustada -= timedelta(days=1)
+            return ajustada
+        return data

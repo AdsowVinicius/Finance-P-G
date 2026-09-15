@@ -1,21 +1,45 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
-import type { CentroCusto, LancamentoRecorrente, Parceiro, Periodicidade, TipoOperacaoNota } from '../types'
+import type {
+  CategoriaLancamento,
+  CentroCusto,
+  LancamentoRecorrente,
+  Parceiro,
+  Periodicidade,
+  RegraDiaUtilCategoria,
+  TipoOperacaoNota,
+} from '../types'
 
 const periodicidades: Periodicidade[] = ['mensal', 'quinzenal', 'semanal', 'anual', 'personalizada_dias']
 
+const REGRA_DIA_UTIL_LABEL: Record<RegraDiaUtilCategoria, string> = {
+  funcionario: 'Pagamento de funcionário (sábado conta como dia útil)',
+  bancaria: 'Conta de banco (só seg-sex, cai pra sexta anterior)',
+}
+
 export function LancamentosRecorrentesPage() {
+  const { usuario } = useAuth()
+  const podeCriarCategoria = usuario?.papel === 'master'
+
   const [lancamentos, setLancamentos] = useState<LancamentoRecorrente[]>([])
   const [parceiros, setParceiros] = useState<Parceiro[]>([])
   const [centros, setCentros] = useState<CentroCusto[]>([])
+  const [categorias, setCategorias] = useState<CategoriaLancamento[]>([])
   const [carregando, setCarregando] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+
+  const [mostrarNovaCategoria, setMostrarNovaCategoria] = useState(false)
+  const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
+  const [novaCategoriaRegra, setNovaCategoriaRegra] = useState<RegraDiaUtilCategoria>('bancaria')
+  const [salvandoCategoria, setSalvandoCategoria] = useState(false)
 
   const [descricao, setDescricao] = useState('')
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoNota>('entrada')
   const [parceiroId, setParceiroId] = useState('')
   const [centroCustoId, setCentroCustoId] = useState('')
+  const [categoriaId, setCategoriaId] = useState('')
   const [valorParcela, setValorParcela] = useState('')
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>('mensal')
   const [intervaloDias, setIntervaloDias] = useState('')
@@ -26,14 +50,16 @@ export function LancamentosRecorrentesPage() {
 
   async function carregar() {
     setCarregando(true)
-    const [lancRes, parcRes, centrosRes] = await Promise.all([
+    const [lancRes, parcRes, centrosRes, categoriasRes] = await Promise.all([
       api.get<LancamentoRecorrente[]>('/lancamentos-recorrentes'),
       api.get<Parceiro[]>('/parceiros'),
       api.get<CentroCusto[]>('/centros-custo'),
+      api.get<CategoriaLancamento[]>('/categorias-lancamento'),
     ])
     setLancamentos(lancRes.data)
     setParceiros(parcRes.data)
     setCentros(centrosRes.data)
+    setCategorias(categoriasRes.data)
     setCarregando(false)
   }
 
@@ -45,6 +71,27 @@ export function LancamentosRecorrentesPage() {
     return parceiros.find((p) => p.id === id)?.razao_social ?? '—'
   }
 
+  async function criarCategoria() {
+    if (!novaCategoriaNome.trim()) return
+    setSalvandoCategoria(true)
+    try {
+      const { data } = await api.post<CategoriaLancamento>('/categorias-lancamento', {
+        nome: novaCategoriaNome.trim(),
+        regra_dia_util: novaCategoriaRegra,
+      })
+      setCategorias((atual) => [...atual, data].sort((a, b) => a.nome.localeCompare(b.nome)))
+      setCategoriaId(data.id)
+      setNovaCategoriaNome('')
+      setNovaCategoriaRegra('bancaria')
+      setMostrarNovaCategoria(false)
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setErro(detail ?? 'Não foi possível criar a categoria')
+    } finally {
+      setSalvandoCategoria(false)
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setErro(null)
@@ -54,6 +101,7 @@ export function LancamentosRecorrentesPage() {
         tipo_operacao: tipoOperacao,
         parceiro_id: parceiroId,
         centro_custo_id: centroCustoId,
+        categoria_id: categoriaId || null,
         valor_parcela: valorParcela,
         periodicidade,
         intervalo_dias: periodicidade === 'personalizada_dias' ? Number(intervaloDias) : null,
@@ -62,6 +110,7 @@ export function LancamentosRecorrentesPage() {
         data_fim: condicaoParada === 'data_fim' ? dataFim : null,
       })
       setDescricao('')
+      setCategoriaId('')
       setValorParcela('')
       setNumeroOcorrencias('')
       setDataFim('')
@@ -158,6 +207,67 @@ export function LancamentosRecorrentesPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-sm font-medium text-slate-700">Categoria</label>
+                {podeCriarCategoria && (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarNovaCategoria((v) => !v)}
+                    className="text-xs font-medium text-brand-700 hover:underline"
+                  >
+                    {mostrarNovaCategoria ? 'cancelar' : '+ nova categoria'}
+                  </button>
+                )}
+              </div>
+              <select
+                value={categoriaId}
+                onChange={(e) => setCategoriaId(e.target.value)}
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Sem categoria (regra padrão de dia útil)</option>
+                {categorias.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
+              </select>
+              {mostrarNovaCategoria && podeCriarCategoria && (
+                <div className="mt-2 flex flex-wrap items-end gap-2 rounded bg-slate-50 p-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Nome</label>
+                    <input
+                      value={novaCategoriaNome}
+                      onChange={(e) => setNovaCategoriaNome(e.target.value)}
+                      placeholder="ex: Folha de pagamento"
+                      className="w-48 rounded border border-slate-300 px-2 py-1 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Regra de dia útil</label>
+                    <select
+                      value={novaCategoriaRegra}
+                      onChange={(e) => setNovaCategoriaRegra(e.target.value as RegraDiaUtilCategoria)}
+                      className="w-64 rounded border border-slate-300 px-2 py-1 text-sm"
+                    >
+                      {(Object.entries(REGRA_DIA_UTIL_LABEL) as [RegraDiaUtilCategoria, string][]).map(([valor, label]) => (
+                        <option key={valor} value={valor}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={criarCategoria}
+                    disabled={salvandoCategoria || !novaCategoriaNome.trim()}
+                    className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {salvandoCategoria ? 'Salvando...' : 'Salvar categoria'}
+                  </button>
+                </div>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Data de início *</label>

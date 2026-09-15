@@ -54,3 +54,7 @@ require_write_access = require_roles(PapelUsuario.financeiro, PapelUsuario.admin
 # Exclusão definitiva (irreversível, sem histórico de dado) é mais restrita
 # que escrita normal — só admin/master, nunca financeiro.
 require_admin = require_roles(PapelUsuario.admin, PapelUsuario.master)
+
+# Cadastro de categorias de lançamento (define a regra de dia útil aplicada
+# aos lançamentos) — só master, por pedido explícito do usuário.
+require_master = require_roles(PapelUsuario.master)

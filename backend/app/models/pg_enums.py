@@ -12,6 +12,7 @@ from app.models.enums import (
     FormatoExtrato,
     PapelUsuario,
     Periodicidade,
+    RegraDiaUtilCategoria,
     StatusConciliacaoLinha,
     StatusConta,
     StatusFuncionario,
@@ -50,3 +51,4 @@ status_projeto_pg = _pg_enum(StatusProjeto, "status_projeto")
 status_funcionario_pg = _pg_enum(StatusFuncionario, "status_funcionario")
 status_pre_lancamento_whatsapp_pg = _pg_enum(StatusPreLancamentoWhatsapp, "status_pre_lancamento_whatsapp")
 forma_pagamento_pg = _pg_enum(FormaPagamento, "forma_pagamento")
+regra_dia_util_categoria_pg = _pg_enum(RegraDiaUtilCategoria, "regra_dia_util_categoria")

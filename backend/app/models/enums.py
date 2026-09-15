@@ -115,3 +115,13 @@ class FormaPagamento(str, enum.Enum):
     boleto = "boleto"
     transferencia = "transferencia"
     outro = "outro"
+
+
+class RegraDiaUtilCategoria(str, enum.Enum):
+    """Como uma categoria de lançamento desloca a data de vencimento quando
+    ela cai num fim de semana — usado só quando o lançamento tem categoria
+    vinculada (ver DiaUtilCalculator.ajustar_por_categoria).
+    """
+
+    funcionario = "funcionario"  # pagamento de funcionário: sábado conta como dia útil
+    bancaria = "bancaria"  # conta de banco: só seg-sex, sáb/dom empurra pra sexta anterior

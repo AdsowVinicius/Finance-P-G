@@ -20,6 +20,7 @@ class LancamentoRecorrente(Base):
     descricao: Mapped[str] = mapped_column(String(200), nullable=False)
     parceiro_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("parceiros.id"))
     centro_custo_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("centros_custo.id"))
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("categorias_lancamento.id"))
     nota_fiscal_origem_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("notas_fiscais.id"))
     projeto_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projetos.id"))
 

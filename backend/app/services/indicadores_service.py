@@ -137,6 +137,29 @@ def por_centro_custo(db: Session, tipo_operacao: TipoOperacaoNota = TipoOperacao
     return [{"centro_custo": nome, "total": Decimal(total)} for nome, total in linhas]
 
 
+def gastos_previstos_por_dia(db: Session, mes_referencia: date) -> list[dict[str, Any]]:
+    """Total previsto (data_vencimento) por dia, pro mês de mes_referencia —
+    granularidade sempre diária aqui; agrupar por semana/dia-da-semana é
+    trabalho do frontend em cima dessa série (evita triplicar a mesma query).
+    Usa data_vencimento (já passou pelo ajuste de dia útil na criação), então
+    reflete a data real em que o dinheiro é esperado sair, não a data "crua".
+    """
+    inicio_mes, fim_mes = _limites_mes(mes_referencia)
+    linhas = (
+        db.query(ContaFinanceira.data_vencimento, func.coalesce(func.sum(ContaFinanceira.valor), 0))
+        .filter(
+            ContaFinanceira.tipo_operacao == TipoOperacaoNota.entrada,
+            ContaFinanceira.status != StatusConta.cancelado,
+            ContaFinanceira.data_vencimento >= inicio_mes,
+            ContaFinanceira.data_vencimento <= fim_mes,
+        )
+        .group_by(ContaFinanceira.data_vencimento)
+        .order_by(ContaFinanceira.data_vencimento)
+        .all()
+    )
+    return [{"data": dia, "total": Decimal(total)} for dia, total in linhas]
+
+
 def notas_por_status(db: Session) -> list[dict[str, Any]]:
     linhas = (
         db.query(NotaFiscal.status, func.count())

@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from pydantic import BaseModel
@@ -26,3 +27,8 @@ class ItemCentroCusto(BaseModel):
 class ItemStatusNota(BaseModel):
     status: str
     quantidade: int
+
+
+class ItemGastoPrevistoDia(BaseModel):
+    data: date
+    total: Decimal

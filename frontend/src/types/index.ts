@@ -29,6 +29,15 @@ export interface CentroCusto {
   ativo: boolean
 }
 
+export type RegraDiaUtilCategoria = 'funcionario' | 'bancaria'
+
+export interface CategoriaLancamento {
+  id: string
+  nome: string
+  regra_dia_util: RegraDiaUtilCategoria
+  ativo: boolean
+}
+
 export interface ContaBancaria {
   id: string
   apelido: string
@@ -60,6 +69,7 @@ export interface LancamentoRecorrente {
   descricao: string
   parceiro_id: string | null
   centro_custo_id: string | null
+  categoria_id: string | null
   conta_bancaria_id: string | null
   valor_parcela: string
   numero_ocorrencias: number | null
@@ -77,6 +87,7 @@ export interface ContaFinanceira {
   nota_fiscal_id: string | null
   parceiro_id: string
   centro_custo_id: string | null
+  categoria_id: string | null
   descricao: string
   numero_parcela: number
   total_parcelas: number
@@ -172,6 +183,11 @@ export interface ItemCentroCusto {
 export interface ItemStatusNota {
   status: StatusNota
   quantidade: number
+}
+
+export interface ItemGastoPrevistoDia {
+  data: string
+  total: string
 }
 
 export interface LogAuditoria {

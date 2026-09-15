@@ -2,7 +2,9 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from dateutil.relativedelta import relativedelta
+from sqlalchemy.orm import Session
 
+from app.models.categoria_lancamento import CategoriaLancamento
 from app.models.conta_financeira import ContaFinanceira
 from app.models.enums import Periodicidade
 from app.models.lancamento_recorrente import LancamentoRecorrente
@@ -72,7 +74,7 @@ class RecorrenciaService:
     def __init__(self, dia_util: DiaUtilCalculator | None = None) -> None:
         self._dia_util = dia_util or DiaUtilCalculator()
 
-    def gerar_parcelas(self, lancamento: LancamentoRecorrente) -> list[ContaFinanceira]:
+    def gerar_parcelas(self, lancamento: LancamentoRecorrente, db: Session | None = None) -> list[ContaFinanceira]:
         if lancamento.parceiro_id is None:
             raise ValueError(
                 "lançamento recorrente sem parceiro não pode gerar contas financeiras "
@@ -88,15 +90,25 @@ class RecorrenciaService:
         )
         total = len(datas)
 
+        # Categoria é opcional — sem ela (ou categoria inativa), o comportamento
+        # continua exatamente o padrão de sempre (proximo_dia_util).
+        categoria: CategoriaLancamento | None = None
+        if lancamento.categoria_id is not None and db is not None:
+            categoria = db.get(CategoriaLancamento, lancamento.categoria_id)
+
         parcelas = []
         for indice, data_original in enumerate(datas, start=1):
-            data_ajustada = self._dia_util.proximo_dia_util(data_original)
+            if categoria is not None and categoria.ativo:
+                data_ajustada = self._dia_util.ajustar_por_categoria(data_original, categoria.regra_dia_util)
+            else:
+                data_ajustada = self._dia_util.proximo_dia_util(data_original)
             parcelas.append(
                 ContaFinanceira(
                     tipo_operacao=lancamento.tipo_operacao,
                     lancamento_recorrente_id=lancamento.id,
                     parceiro_id=lancamento.parceiro_id,
                     centro_custo_id=lancamento.centro_custo_id,
+                    categoria_id=lancamento.categoria_id,
                     descricao=lancamento.descricao,
                     numero_parcela=indice,
                     total_parcelas=total,

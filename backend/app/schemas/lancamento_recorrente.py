@@ -12,6 +12,7 @@ class LancamentoRecorrenteCreate(BaseModel):
     descricao: str
     parceiro_id: uuid.UUID
     centro_custo_id: uuid.UUID
+    categoria_id: uuid.UUID | None = None
     conta_bancaria_id: uuid.UUID | None = None
 
     valor_parcela: Decimal = Field(gt=0)
@@ -39,6 +40,7 @@ class LancamentoRecorrenteRead(BaseModel):
     descricao: str
     parceiro_id: uuid.UUID | None
     centro_custo_id: uuid.UUID | None
+    categoria_id: uuid.UUID | None
     conta_bancaria_id: uuid.UUID | None
     valor_parcela: Decimal
     numero_ocorrencias: int | None

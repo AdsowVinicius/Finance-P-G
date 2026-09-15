@@ -24,6 +24,7 @@ class ContaFinanceira(Base):
     nota_fiscal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("notas_fiscais.id"))
     parceiro_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("parceiros.id"), nullable=False)
     centro_custo_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("centros_custo.id"))
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("categorias_lancamento.id"))
 
     descricao: Mapped[str] = mapped_column(String(200), nullable=False)
     numero_parcela: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

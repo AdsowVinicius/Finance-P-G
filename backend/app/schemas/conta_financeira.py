@@ -13,6 +13,7 @@ class ContaFinanceiraCreate(BaseModel):
     tipo_operacao: TipoOperacaoNota
     parceiro_id: uuid.UUID
     centro_custo_id: uuid.UUID
+    categoria_id: uuid.UUID | None = None
     descricao: str
     valor: Decimal = Field(gt=0)
     data_vencimento: date
@@ -36,6 +37,7 @@ class ContaFinanceiraRead(BaseModel):
     nota_fiscal_id: uuid.UUID | None
     parceiro_id: uuid.UUID
     centro_custo_id: uuid.UUID | None
+    categoria_id: uuid.UUID | None
     descricao: str
     numero_parcela: int
     total_parcelas: int

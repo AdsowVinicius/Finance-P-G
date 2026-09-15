@@ -1,5 +1,6 @@
 from datetime import date
 
+from app.models.enums import RegraDiaUtilCategoria
 from app.services.dia_util_calculator import DiaUtilCalculator
 
 
@@ -40,3 +41,37 @@ class TestDiaUtilCalculator:
         sabado = date(2026, 9, 12)
         self.calc.proximo_dia_util(sabado)
         assert sabado == date(2026, 9, 12)
+
+
+class TestAjustarPorCategoria:
+    """Regra de deslocamento por categoria — pedido do usuário: pagamento de
+    funcionário conta sábado como dia útil; conta de banco só seg-sex e
+    empurra pra trás (sexta anterior) se cair no fim de semana.
+    """
+
+    def setup_method(self) -> None:
+        self.calc = DiaUtilCalculator()
+
+    def test_funcionario_sabado_nao_e_alterado(self) -> None:
+        sabado = date(2026, 9, 12)
+        assert self.calc.ajustar_por_categoria(sabado, RegraDiaUtilCategoria.funcionario) == sabado
+
+    def test_funcionario_domingo_empurra_para_proximo_dia_util(self) -> None:
+        domingo = date(2026, 9, 13)
+        assert self.calc.ajustar_por_categoria(domingo, RegraDiaUtilCategoria.funcionario) == date(2026, 9, 14)
+
+    def test_funcionario_dia_util_normal_nao_e_alterado(self) -> None:
+        segunda_normal = date(2026, 9, 14)
+        assert self.calc.ajustar_por_categoria(segunda_normal, RegraDiaUtilCategoria.funcionario) == segunda_normal
+
+    def test_bancaria_sabado_empurra_para_sexta_anterior(self) -> None:
+        sabado = date(2026, 9, 12)
+        assert self.calc.ajustar_por_categoria(sabado, RegraDiaUtilCategoria.bancaria) == date(2026, 9, 11)
+
+    def test_bancaria_domingo_empurra_para_sexta_anterior(self) -> None:
+        domingo = date(2026, 9, 13)
+        assert self.calc.ajustar_por_categoria(domingo, RegraDiaUtilCategoria.bancaria) == date(2026, 9, 11)
+
+    def test_bancaria_dia_util_normal_nao_e_alterado(self) -> None:
+        segunda_normal = date(2026, 9, 14)
+        assert self.calc.ajustar_por_categoria(segunda_normal, RegraDiaUtilCategoria.bancaria) == segunda_normal
