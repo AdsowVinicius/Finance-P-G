@@ -135,3 +135,28 @@ def criar_nota(
         texto=nota.texto,
         created_at=nota.created_at,
     )
+
+
+@router.delete(
+    "/notas/{nota_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_write_access)]
+)
+def excluir_nota(
+    centro_custo_id: uuid.UUID,
+    nota_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(get_current_user),
+) -> None:
+    """Quadro de notas é colaborativo — qualquer um com acesso de escrita
+    pode apagar qualquer nota, não só a própria (mesmo nível de permissão
+    de quem posta).
+    """
+    nota = (
+        db.query(NotaCentroCusto)
+        .filter(NotaCentroCusto.id == nota_id, NotaCentroCusto.centro_custo_id == centro_custo_id)
+        .first()
+    )
+    if nota is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nota não encontrada")
+    auditoria_service.registrar_exclusao(db, usuario_atual.id, "notas_centro_custo", nota)
+    db.delete(nota)
+    db.commit()

@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowDownCircle, ArrowUpCircle, TrendingUp, Wallet } from 'lucide-react'
+import { AlertCircle, ArrowDownCircle, ArrowUpCircle, StickyNote, Trash2, TrendingUp, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -24,6 +24,14 @@ function formatarMes(mes: string): string {
 function formatarDataHora(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
+
+const CORES_NOTA = [
+  'border-yellow-300 bg-yellow-100',
+  'border-pink-300 bg-pink-100',
+  'border-sky-300 bg-sky-100',
+  'border-green-300 bg-green-100',
+  'border-orange-300 bg-orange-100',
+]
 
 interface LinhaOrcamentoProps {
   item: OrcamentoCentroCusto
@@ -145,6 +153,11 @@ export function AnaliseCentroCustoPage() {
     }
   }
 
+  async function excluirNota(notaId: string) {
+    await api.delete(`/centros-custo/${centroCustoId}/notas/${notaId}`)
+    setNotas((atual) => atual.filter((n) => n.id !== notaId))
+  }
+
   function irParaRelatorios(params: Record<string, string>) {
     navigate(`/relatorios?${new URLSearchParams({ centro_custo_id: centroCustoId, ...params }).toString()}`)
   }
@@ -186,164 +199,182 @@ export function AnaliseCentroCustoPage() {
         <p className="text-sm text-slate-400">Carregando...</p>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <KpiCard
-              titulo="Despesas realizadas"
-              valor={formatarMoeda(resumo.despesas_realizadas)}
-              icone={ArrowUpCircle}
-              corIcone="text-red-600"
-              corFundo="bg-red-100"
-              onClick={() => irParaRelatorios({ tipo_operacao: 'entrada', status_conta: 'pago' })}
-            />
-            <KpiCard
-              titulo="Receitas realizadas"
-              valor={formatarMoeda(resumo.receitas_realizadas)}
-              icone={ArrowDownCircle}
-              corIcone="text-emerald-600"
-              corFundo="bg-emerald-100"
-              onClick={() => irParaRelatorios({ tipo_operacao: 'saida', status_conta: 'pago' })}
-            />
-            <KpiCard
-              titulo="Saldo realizado"
-              valor={formatarMoeda(resumo.saldo_realizado)}
-              icone={Wallet}
-              corIcone="text-brand-700"
-              corFundo="bg-brand-100"
-              onClick={() => irParaRelatorios({})}
-            />
-            <KpiCard
-              titulo="Despesas futuras"
-              valor={formatarMoeda(resumo.despesas_futuras)}
-              icone={AlertCircle}
-              corIcone="text-amber-600"
-              corFundo="bg-amber-100"
-              onClick={() => irParaRelatorios({ tipo_operacao: 'entrada', status_conta: 'pendente' })}
-            />
-            <KpiCard
-              titulo="Receitas futuras"
-              valor={formatarMoeda(resumo.receitas_futuras)}
-              icone={TrendingUp}
-              corIcone="text-sky-600"
-              corFundo="bg-sky-100"
-              onClick={() => irParaRelatorios({ tipo_operacao: 'saida', status_conta: 'pendente' })}
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px] lg:items-start">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <KpiCard
+                  titulo="Despesas realizadas"
+                  valor={formatarMoeda(resumo.despesas_realizadas)}
+                  icone={ArrowUpCircle}
+                  corIcone="text-red-600"
+                  corFundo="bg-red-100"
+                  onClick={() => irParaRelatorios({ tipo_operacao: 'entrada', status_conta: 'pago' })}
+                />
+                <KpiCard
+                  titulo="Receitas realizadas"
+                  valor={formatarMoeda(resumo.receitas_realizadas)}
+                  icone={ArrowDownCircle}
+                  corIcone="text-emerald-600"
+                  corFundo="bg-emerald-100"
+                  onClick={() => irParaRelatorios({ tipo_operacao: 'saida', status_conta: 'pago' })}
+                />
+                <KpiCard
+                  titulo="Saldo realizado"
+                  valor={formatarMoeda(resumo.saldo_realizado)}
+                  icone={Wallet}
+                  corIcone="text-brand-700"
+                  corFundo="bg-brand-100"
+                  onClick={() => irParaRelatorios({})}
+                />
+                <KpiCard
+                  titulo="Despesas futuras"
+                  valor={formatarMoeda(resumo.despesas_futuras)}
+                  icone={AlertCircle}
+                  corIcone="text-amber-600"
+                  corFundo="bg-amber-100"
+                  onClick={() => irParaRelatorios({ tipo_operacao: 'entrada', status_conta: 'pendente' })}
+                />
+                <KpiCard
+                  titulo="Receitas futuras"
+                  valor={formatarMoeda(resumo.receitas_futuras)}
+                  icone={TrendingUp}
+                  corIcone="text-sky-600"
+                  corFundo="bg-sky-100"
+                  onClick={() => irParaRelatorios({ tipo_operacao: 'saida', status_conta: 'pendente' })}
+                />
+              </div>
 
-          <div className="mt-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-            <h3 className="mb-1 text-sm font-semibold text-slate-700">Curva S — planejado x realizado (despesa acumulada)</h3>
-            <p className="mb-4 text-xs text-slate-500">
-              Planejado vem do orçamento mensal cadastrado abaixo. Sem orçamento cadastrado, só a linha de realizado aparece.
-            </p>
-            {dadosCurva.length === 0 ? (
-              <p className="py-10 text-center text-sm text-slate-400">
-                Sem orçamento nem despesas lançadas ainda pra essa obra.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={dadosCurva}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: '#64748b' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => formatarMoedaCompacta(v)}
-                  />
-                  <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="Planejado" stroke="#64748b" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="Realizado" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-              <h3 className="mb-4 text-sm font-semibold text-slate-700">Orçamento mensal (planejado)</h3>
-              {orcamento.length === 0 ? (
-                <p className="mb-3 text-sm text-slate-400">Nenhum mês orçado ainda.</p>
-              ) : (
-                <table className="mb-3 w-full text-sm">
-                  <thead className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-3 py-1.5">Mês</th>
-                      <th className="px-3 py-1.5">Valor planejado</th>
-                      <th className="px-3 py-1.5" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orcamento.map((o) => (
-                      <LinhaOrcamento
-                        key={o.id}
-                        item={o}
-                        podeEditar={podeEditar}
-                        onSalvar={(valor) => salvarOrcamentoMes(o.mes_referencia.slice(0, 7), valor)}
+              <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+                <h3 className="mb-1 text-sm font-semibold text-slate-700">Curva S — planejado x realizado (despesa acumulada)</h3>
+                <p className="mb-4 text-xs text-slate-500">
+                  Planejado vem do orçamento mensal cadastrado abaixo. Sem orçamento cadastrado, só a linha de realizado aparece.
+                </p>
+                {dadosCurva.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-slate-400">
+                    Sem orçamento nem despesas lançadas ainda pra essa obra.
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={dadosCurva}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        tick={{ fontSize: 12, fill: '#64748b' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => formatarMoedaCompacta(v)}
                       />
-                    ))}
-                  </tbody>
-                </table>
-              )}
-              {podeEditar && (
-                <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Novo mês</label>
-                    <input
-                      type="month"
-                      value={novoMesOrcamento}
-                      onChange={(e) => setNovoMesOrcamento(e.target.value)}
-                      className="rounded border border-slate-300 px-2 py-1 text-sm"
-                    />
+                      <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Line type="monotone" dataKey="Planejado" stroke="#64748b" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="Realizado" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+                <h3 className="mb-4 text-sm font-semibold text-slate-700">Orçamento mensal (planejado)</h3>
+                {orcamento.length === 0 ? (
+                  <p className="mb-3 text-sm text-slate-400">Nenhum mês orçado ainda.</p>
+                ) : (
+                  <table className="mb-3 w-full text-sm">
+                    <thead className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-1.5">Mês</th>
+                        <th className="px-3 py-1.5">Valor planejado</th>
+                        <th className="px-3 py-1.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orcamento.map((o) => (
+                        <LinhaOrcamento
+                          key={o.id}
+                          item={o}
+                          podeEditar={podeEditar}
+                          onSalvar={(valor) => salvarOrcamentoMes(o.mes_referencia.slice(0, 7), valor)}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {podeEditar && (
+                  <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Novo mês</label>
+                      <input
+                        type="month"
+                        value={novoMesOrcamento}
+                        onChange={(e) => setNovoMesOrcamento(e.target.value)}
+                        className="rounded border border-slate-300 px-2 py-1 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Valor planejado</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={novoValorOrcamento}
+                        onChange={(e) => setNovoValorOrcamento(e.target.value)}
+                        className="w-32 rounded border border-slate-300 px-2 py-1 text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={adicionarMesOrcamento}
+                      disabled={!novoMesOrcamento || !novoValorOrcamento}
+                      className="rounded bg-brand-700 px-3 py-1.5 text-sm text-white hover:bg-brand-800 disabled:opacity-40"
+                    >
+                      Adicionar
+                    </button>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Valor planejado</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={novoValorOrcamento}
-                      onChange={(e) => setNovoValorOrcamento(e.target.value)}
-                      className="w-32 rounded border border-slate-300 px-2 py-1 text-sm"
-                    />
-                  </div>
-                  <button
-                    onClick={adicionarMesOrcamento}
-                    disabled={!novoMesOrcamento || !novoValorOrcamento}
-                    className="rounded bg-brand-700 px-3 py-1.5 text-sm text-white hover:bg-brand-800 disabled:opacity-40"
-                  >
-                    Adicionar
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-              <h3 className="mb-4 text-sm font-semibold text-slate-700">Notas da obra — visível pra todo mundo</h3>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm lg:sticky lg:top-6">
+              <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-amber-900">
+                <StickyNote size={16} />
+                Quadro de notas da obra
+              </h3>
+              <p className="mb-3 text-xs text-amber-700">Visível pra todo mundo.</p>
               {podeEditar && (
-                <div className="mb-4 flex items-start gap-2">
+                <div className="mb-4 space-y-2">
                   <textarea
                     value={novaNota}
                     onChange={(e) => setNovaNota(e.target.value)}
                     placeholder="Escreva uma nota sobre essa obra..."
-                    rows={2}
-                    className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+                    rows={3}
+                    className="w-full rounded border border-amber-300 bg-white px-3 py-2 text-sm"
                   />
                   <button
                     onClick={enviarNota}
                     disabled={enviandoNota || !novaNota.trim()}
-                    className="rounded bg-brand-700 px-3 py-2 text-sm text-white hover:bg-brand-800 disabled:opacity-50"
+                    className="w-full rounded bg-brand-700 px-3 py-1.5 text-sm text-white hover:bg-brand-800 disabled:opacity-50"
                   >
-                    {enviandoNota ? 'Enviando...' : 'Adicionar'}
+                    {enviandoNota ? 'Enviando...' : 'Fixar nota'}
                   </button>
                 </div>
               )}
               {notas.length === 0 ? (
-                <p className="py-6 text-center text-sm text-slate-400">Nenhuma nota ainda.</p>
+                <p className="py-6 text-center text-sm text-amber-700/70">Nenhuma nota ainda.</p>
               ) : (
-                <ul className="max-h-80 space-y-3 overflow-y-auto">
-                  {notas.map((n) => (
-                    <li key={n.id} className="rounded-lg bg-slate-50 p-3">
-                      <p className="whitespace-pre-wrap text-sm text-slate-700">{n.texto}</p>
-                      <p className="mt-1 text-xs text-slate-400">
+                <ul className="max-h-[32rem] space-y-3 overflow-y-auto pb-1">
+                  {notas.map((n, i) => (
+                    <li
+                      key={n.id}
+                      className={`relative rounded border p-3 shadow-sm ${CORES_NOTA[i % CORES_NOTA.length]} ${i % 2 === 0 ? 'rotate-1' : '-rotate-1'}`}
+                    >
+                      {podeEditar && (
+                        <button
+                          onClick={() => excluirNota(n.id)}
+                          title="Excluir nota"
+                          className="absolute right-1.5 top-1.5 rounded p-1 text-slate-500 hover:bg-black/5 hover:text-red-600"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                      <p className="whitespace-pre-wrap pr-5 text-sm text-slate-800">{n.texto}</p>
+                      <p className="mt-1.5 text-xs text-slate-500">
                         {n.usuario_nome} · {formatarDataHora(n.created_at)}
                       </p>
                     </li>
