@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
+import { AssistentePage } from './pages/AssistentePage'
 import { CentrosCustoPage } from './pages/CentrosCustoPage'
 import { ContasBancariasPage } from './pages/ContasBancariasPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -25,6 +26,7 @@ function App() {
         }
       >
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/assistente" element={<AssistentePage />} />
         <Route path="/parceiros" element={<ParceirosPage />} />
         <Route path="/centros-custo" element={<CentrosCustoPage />} />
         <Route path="/contas-bancarias" element={<ContasBancariasPage />} />

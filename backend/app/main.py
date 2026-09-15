@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import (
+    assistente,
     auth,
     centros_custo,
     contas_bancarias,
@@ -34,6 +35,7 @@ app.include_router(lancamentos_recorrentes.router)
 app.include_router(contas_financeiras.router)
 app.include_router(notas_fiscais.router)
 app.include_router(extratos.router)
+app.include_router(assistente.router)
 
 Path(settings.storage_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/storage", StaticFiles(directory=settings.storage_dir), name="storage")

@@ -28,6 +28,9 @@ pypdf==5.1.0
 ofxparse==0.21
 lxml==5.3.0
 
+# RF16 — assistente de consulta em linguagem natural (Claude Haiku 4.5)
+anthropic==1.5.0
+
 # Dev / testes
 pytest==8.3.4
 pytest-cov==6.0.0

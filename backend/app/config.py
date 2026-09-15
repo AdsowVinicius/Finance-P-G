@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     meudanfe_api_key: str | None = None
     meudanfe_base_url: str = "https://api.meudanfe.com.br/v2"
 
+    # RF16 — assistente de consulta em linguagem natural (Claude Haiku 4.5).
+    # Sem chave configurada, o endpoint do assistente responde 503.
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-haiku-4-5"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
