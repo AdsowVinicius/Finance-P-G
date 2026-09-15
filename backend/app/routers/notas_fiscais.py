@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_write_access
 from app.core.storage import salvar_arquivo_upload
 from app.database import get_db
+from app.models.conta_financeira import ContaFinanceira
 from app.models.enums import StatusNota, StatusProcessamentoNota, TipoNota, TipoOperacaoNota
 from app.models.nota_fiscal import NotaFiscal
 from app.models.usuario import Usuario
-from app.schemas.nota_fiscal import ChaveAcessoManual, NotaFiscalRead
+from app.schemas.nota_fiscal import ChaveAcessoManual, NotaFiscalCompletar, NotaFiscalRead
 from app.services import auditoria_service
 from app.services.nota_fiscal_service import NotaFiscalService, obter_ou_criar_parceiro_sentinela
 from app.services.recorrencia_service import RecorrenciaService
@@ -210,6 +211,54 @@ def informar_chave_manual(
 
     processar_nota_fiscal.delay(str(nota.id))
 
+    return nota
+
+
+@router.patch("/{nota_id}", response_model=NotaFiscalRead, dependencies=[Depends(require_write_access)])
+def completar_nota_fiscal(
+    nota_id: uuid.UUID,
+    dados: NotaFiscalCompletar,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(get_current_user),
+) -> NotaFiscal:
+    """Completa campos que faltaram na captura — sobretudo centro de custo
+    (nota chegada por WhatsApp nunca tem, já que só existe no app) e,
+    quando a foto/PDF não tinha chave de acesso legível, parceiro/valor/data
+    reais (fica no parceiro sentinela até alguém preencher aqui). Se depois
+    do update a nota tiver parceiro real e valor real e ainda não tiver
+    parcela nenhuma gerada, gera a parcela à vista agora — pra nota
+    parcelada, use o cadastro completo (upload manual) em vez desse atalho.
+    """
+    nota = db.get(NotaFiscal, nota_id)
+    if nota is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nota fiscal não encontrada")
+
+    antes = auditoria_service.snapshot(nota)
+    for campo, valor in dados.model_dump(exclude_unset=True).items():
+        setattr(nota, campo, valor)
+
+    tem_parcela = db.query(ContaFinanceira.id).filter(ContaFinanceira.nota_fiscal_id == nota.id).first() is not None
+    parceiro_sentinela = obter_ou_criar_parceiro_sentinela(db)
+    dados_completos = nota.parceiro_id != parceiro_sentinela.id and nota.valor_total > Decimal("0.01")
+
+    if dados_completos and not tem_parcela:
+        parcelas = RecorrenciaService().gerar_parcelas_valor_total(
+            tipo_operacao=nota.tipo_operacao,
+            parceiro_id=nota.parceiro_id,
+            centro_custo_id=nota.centro_custo_id,
+            descricao=f"{'NFe' if nota.tipo == TipoNota.nfe else 'NFSe'} {nota.numero_nota or ''}".strip(),
+            valor_total=nota.valor_total,
+            numero_parcelas=1,
+            data_inicio=nota.data_emissao,
+            nota_fiscal_id=nota.id,
+        )
+        db.add_all(parcelas)
+        if nota.status_processamento in (StatusProcessamentoNota.chave_nao_encontrada, StatusProcessamentoNota.erro_api):
+            nota.status_processamento = StatusProcessamentoNota.concluido
+
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "notas_fiscais", antes, nota)
+    db.commit()
+    db.refresh(nota)
     return nota
 
 

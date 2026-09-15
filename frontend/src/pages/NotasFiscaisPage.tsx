@@ -72,6 +72,59 @@ function ChaveManualForm({ notaId, onSalvo }: { notaId: string; onSalvo: () => v
   )
 }
 
+function CompletarCentroCustoForm({
+  notaId,
+  centros,
+  onSalvo,
+}: {
+  notaId: string
+  centros: CentroCusto[]
+  onSalvo: () => void
+}) {
+  const [centroCustoId, setCentroCustoId] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function salvar() {
+    if (!centroCustoId) return
+    setSalvando(true)
+    setErro(null)
+    try {
+      await api.patch(`/notas-fiscais/${notaId}`, { centro_custo_id: centroCustoId })
+      onSalvo()
+    } catch {
+      setErro('Não foi possível salvar o centro de custo')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        value={centroCustoId}
+        onChange={(e) => setCentroCustoId(e.target.value)}
+        className="rounded border border-slate-300 px-2 py-1 text-xs"
+      >
+        <option value="">Definir centro de custo...</option>
+        {centros.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.nome}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={salvar}
+        disabled={!centroCustoId || salvando}
+        className="rounded bg-brand-700 px-2 py-1 text-xs text-white hover:bg-brand-800 disabled:opacity-40"
+      >
+        {salvando ? 'Salvando...' : 'Salvar'}
+      </button>
+      {erro && <span className="text-xs text-red-600">{erro}</span>}
+    </div>
+  )
+}
+
 function ReprocessarButton({ notaId, onReprocessado }: { notaId: string; onReprocessado: () => void }) {
   const [enviando, setEnviando] = useState(false)
 
@@ -267,6 +320,11 @@ export function NotasFiscaisPage() {
 
   function nomeParceiro(id: string): string {
     return parceiros.find((p) => p.id === id)?.razao_social ?? '—'
+  }
+
+  function nomeCentroCusto(id: string | null): string | null {
+    if (!id) return null
+    return centros.find((c) => c.id === id)?.nome ?? null
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -482,6 +540,7 @@ export function NotasFiscaisPage() {
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-2">Parceiro</th>
+              <th className="px-4 py-2">Centro de custo</th>
               <th className="px-4 py-2">Valor</th>
               <th className="px-4 py-2">Emissão</th>
               <th className="px-4 py-2">Parcelas</th>
@@ -494,14 +553,14 @@ export function NotasFiscaisPage() {
           <tbody>
             {carregando && (
               <tr>
-                <td className="px-4 py-3 text-slate-400" colSpan={8}>
+                <td className="px-4 py-3 text-slate-400" colSpan={9}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!carregando && notas.length === 0 && (
               <tr>
-                <td className="px-4 py-3 text-slate-400" colSpan={8}>
+                <td className="px-4 py-3 text-slate-400" colSpan={9}>
                   Nenhuma nota fiscal encontrada com esse filtro
                 </td>
               </tr>
@@ -510,6 +569,11 @@ export function NotasFiscaisPage() {
               <Fragment key={n.id}>
                 <tr className="border-t border-slate-100 align-top">
                   <td className="px-4 py-2">{nomeParceiro(n.parceiro_id)}</td>
+                  <td className="px-4 py-2">
+                    {nomeCentroCusto(n.centro_custo_id) ?? (
+                      <CompletarCentroCustoForm notaId={n.id} centros={centros} onSalvo={carregar} />
+                    )}
+                  </td>
                   <td className="px-4 py-2">
                     {Number(n.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </td>
@@ -554,7 +618,7 @@ export function NotasFiscaisPage() {
                 </tr>
                 {expandida === n.id && (
                   <tr>
-                    <td colSpan={8} className="bg-slate-50 p-0">
+                    <td colSpan={9} className="bg-slate-50 p-0">
                       <ParcelasDaNota notaId={n.id} />
                     </td>
                   </tr>

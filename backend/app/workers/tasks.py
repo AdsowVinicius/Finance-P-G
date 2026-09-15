@@ -1,16 +1,22 @@
-"""As 2 tasks essenciais do Celery (CLAUDE.md/arquitetura.mermaid):
-processar_nota_fiscal (extrai chave → chama API → parse XML) e
-processar_importacao_extrato (parse do arquivo + dispara o matching).
+"""Tasks do Celery (CLAUDE.md/arquitetura.mermaid): processar_nota_fiscal
+(extrai chave → chama API → parse XML), processar_importacao_extrato (parse
+do arquivo + dispara o matching), e as 3 tasks do canal WhatsApp — mensagem
+de texto, áudio (transcreve e trata como texto) e mídia de nota fiscal
+(foto/PDF vira nota pendente de revisão).
 
-Ambas idempotentes: reprocessar não duplica dado nem gera cobrança
-repetida na API paga.
+Todas idempotentes onde faz sentido: reprocessar não duplica dado nem gera
+cobrança repetida na API paga.
 """
 
 import logging
+import mimetypes
 import uuid
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from app.config import settings
+from app.core.storage import salvar_bytes
 from app.database import SessionLocal
 from app.models.conciliacao import Conciliacao
 from app.models.conta_financeira import ContaFinanceira
@@ -20,19 +26,25 @@ from app.models.enums import (
     StatusConta,
     StatusImportacao,
     StatusProcessamentoNota,
+    TipoNota,
+    TipoOperacaoNota,
 )
 from app.models.extrato_importado import ExtratoImportado
 from app.models.lancamento_extrato import LancamentoExtrato
 from app.models.nota_fiscal import NotaFiscal
 from app.models.parceiro import Parceiro
-from app.services import whatsapp_client, whatsapp_service
+from app.models.usuario import Usuario
+from app.services import auditoria_service, transcricao_service, whatsapp_client, whatsapp_service
 from app.services.conciliacao_matcher import ConciliacaoMatcher, LancamentoParaConciliar
 from app.services.extrato_parser_service import ExtratoParserService
 from app.services.nfe_consulta_client import NfeConsultaClient, NfeConsultaError
 from app.services.nota_fiscal_service import atualizar_status_conciliacao
 from app.services.nota_fiscal_service import CNPJ_SENTINELA, obter_ou_criar_parceiro_por_cnpj
+from app.services.nota_fiscal_service import NotaFiscalService, obter_ou_criar_parceiro_sentinela
 from app.services.recorrencia_service import RecorrenciaService
 from app.workers.celery_app import celery_app
+
+_EXTENSOES_NOTA_WHATSAPP = {".pdf", ".jpg", ".jpeg", ".png"}
 
 logger = logging.getLogger(__name__)
 
@@ -214,4 +226,116 @@ def processar_mensagem_whatsapp(telefone: str, texto: str, phone_number_id: str 
         resposta = "Assistente indisponível no momento — tente novamente mais tarde."
     finally:
         db.close()
+    whatsapp_client.enviar_mensagem_texto(telefone, resposta, phone_number_id)
+
+
+@celery_app.task(name="processar_audio_whatsapp")
+def processar_audio_whatsapp(telefone: str, media_id: str, phone_number_id: str | None = None) -> None:
+    """Voice note do WhatsApp: baixa o áudio, transcreve localmente (Whisper,
+    sem API paga) e trata o texto resultante exatamente como se tivesse sido
+    digitado — reaproveita o mesmo processar_mensagem do RF16/pré-lançamento.
+    """
+    try:
+        conteudo, _mime_type = whatsapp_client.baixar_midia(media_id)
+    except Exception:
+        logger.exception("Falha ao baixar áudio do WhatsApp (media_id=%s)", media_id)
+        whatsapp_client.enviar_mensagem_texto(telefone, "Não consegui baixar seu áudio — tenta de novo?", phone_number_id)
+        return
+
+    texto = transcricao_service.transcrever(conteudo)
+    if not texto:
+        whatsapp_client.enviar_mensagem_texto(
+            telefone, "Não consegui entender o áudio — pode tentar de novo ou mandar por texto?", phone_number_id
+        )
+        return
+
+    db = SessionLocal()
+    try:
+        resposta = whatsapp_service.processar_mensagem(telefone, texto, db)
+    except whatsapp_service.WhatsappIndisponivelError:
+        resposta = "Assistente indisponível no momento — tente novamente mais tarde."
+    finally:
+        db.close()
+    whatsapp_client.enviar_mensagem_texto(telefone, f'"{texto}"\n\n{resposta}', phone_number_id)
+
+
+@celery_app.task(name="processar_midia_nota_whatsapp")
+def processar_midia_nota_whatsapp(telefone: str, media_id: str, tipo_midia: str, phone_number_id: str | None = None) -> None:
+    """Foto ou PDF de nota fiscal mandado por WhatsApp: baixa, tenta achar a
+    chave de acesso (só funciona em PDF com camada de texto — foto sempre
+    cai no fallback manual, igual upload de PDF escaneado) e cria a nota
+    fiscal pendente de revisão (sem centro de custo, que só existe no app).
+    """
+    db = SessionLocal()
+    try:
+        usuario = db.query(Usuario).filter(Usuario.telefone_whatsapp == telefone).first()
+        if usuario is None:
+            whatsapp_client.enviar_mensagem_texto(
+                telefone,
+                "Esse número ainda não está vinculado a um usuário do Finance P&G. Peça pra um admin "
+                "vincular seu WhatsApp no sistema antes de mandar notas por aqui.",
+                phone_number_id,
+            )
+            return
+
+        try:
+            conteudo, mime_type = whatsapp_client.baixar_midia(media_id)
+        except Exception:
+            logger.exception("Falha ao baixar mídia do WhatsApp (media_id=%s)", media_id)
+            whatsapp_client.enviar_mensagem_texto(telefone, "Não consegui baixar o arquivo — tenta mandar de novo?", phone_number_id)
+            return
+
+        extensao = mimetypes.guess_extension(mime_type.split(";")[0].strip()) or (
+            ".pdf" if tipo_midia == "document" else ".jpg"
+        )
+        if extensao not in _EXTENSOES_NOTA_WHATSAPP:
+            whatsapp_client.enviar_mensagem_texto(
+                telefone, "Esse tipo de arquivo eu ainda não processo — manda em PDF, JPG ou PNG.", phone_number_id
+            )
+            return
+
+        caminho = salvar_bytes(conteudo, "notas", f"whatsapp{extensao}", extensoes_permitidas=_EXTENSOES_NOTA_WHATSAPP)
+
+        chave_acesso = NotaFiscalService().extrair_chave_de_pdf(conteudo) if extensao == ".pdf" else None
+        if chave_acesso and db.query(NotaFiscal).filter(NotaFiscal.chave_acesso == chave_acesso).first():
+            whatsapp_client.enviar_mensagem_texto(telefone, "Essa nota fiscal já estava cadastrada no sistema.", phone_number_id)
+            return
+
+        status_processamento = (
+            StatusProcessamentoNota.consultando_api if chave_acesso else StatusProcessamentoNota.chave_nao_encontrada
+        )
+        parceiro_sentinela = obter_ou_criar_parceiro_sentinela(db)
+        nota = NotaFiscal(
+            parceiro_id=parceiro_sentinela.id,
+            centro_custo_id=None,
+            tipo=TipoNota.nfe,
+            tipo_operacao=TipoOperacaoNota.entrada,
+            chave_acesso=chave_acesso,
+            valor_total=Decimal("0.01"),
+            data_emissao=date.today(),
+            arquivo_pdf_path=caminho,
+            status_processamento=status_processamento,
+            criado_por=usuario.id,
+        )
+        db.add(nota)
+        db.flush()
+        auditoria_service.registrar_criacao(db, usuario.id, "notas_fiscais", nota)
+        db.commit()
+        db.refresh(nota)
+        nota_id = str(nota.id)
+    finally:
+        db.close()
+
+    if status_processamento == StatusProcessamentoNota.consultando_api:
+        processar_nota_fiscal.delay(nota_id)
+        resposta = (
+            "Recebi sua nota fiscal! Encontrei a chave de acesso e já tô consultando os dados — "
+            "confira em Notas Fiscais no sistema em alguns instantes."
+        )
+    else:
+        resposta = (
+            "Recebi seu arquivo e salvei como nota fiscal pendente! Não consegui identificar a chave de "
+            "acesso automaticamente (comum em foto) — entra no sistema, na tela de Notas Fiscais, pra "
+            "completar os dados ou colar a chave manualmente."
+        )
     whatsapp_client.enviar_mensagem_texto(telefone, resposta, phone_number_id)

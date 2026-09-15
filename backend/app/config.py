@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     whatsapp_verify_token: str | None = None
     whatsapp_app_secret: str | None = None
 
+    # Transcrição de áudio do WhatsApp — Whisper local (faster-whisper),
+    # sem API paga externa. Tamanhos: tiny/base/small/medium/large-v3 — small
+    # é o equilíbrio padrão entre velocidade (CPU) e qualidade em português.
+    whisper_model_size: str = "small"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 
 from app.config import settings
-from app.workers.tasks import processar_mensagem_whatsapp
+from app.workers.tasks import processar_audio_whatsapp, processar_mensagem_whatsapp, processar_midia_nota_whatsapp
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +52,18 @@ async def receber_mensagem(request: Request, x_hub_signature_256: str | None = H
             # já que o app pode ter mais de um número WhatsApp conectado.
             phone_number_id = valor.get("metadata", {}).get("phone_number_id")
             for mensagem in valor.get("messages", []):
-                if mensagem.get("type") != "text":
-                    logger.info("Ignorando mensagem WhatsApp não-texto: %s", mensagem.get("type"))
-                    continue
+                tipo = mensagem.get("type")
                 telefone = mensagem["from"]
-                texto = mensagem["text"]["body"]
-                processar_mensagem_whatsapp.delay(telefone, texto, phone_number_id)
+
+                if tipo == "text":
+                    processar_mensagem_whatsapp.delay(telefone, mensagem["text"]["body"], phone_number_id)
+                elif tipo == "audio":
+                    # voice note — transcreve e trata como se fosse texto
+                    processar_audio_whatsapp.delay(telefone, mensagem["audio"]["id"], phone_number_id)
+                elif tipo in ("image", "document"):
+                    # foto/PDF de nota fiscal — vira nota fiscal pendente de revisão
+                    processar_midia_nota_whatsapp.delay(telefone, mensagem[tipo]["id"], tipo, phone_number_id)
+                else:
+                    logger.info("Ignorando mensagem WhatsApp não suportada: %s", tipo)
 
     return {"status": "ok"}

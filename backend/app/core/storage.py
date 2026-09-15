@@ -10,18 +10,19 @@ _EXTENSOES_EXTRATO = {".ofx", ".csv"}
 _TAMANHO_MAXIMO_PADRAO = 15 * 1024 * 1024  # 15MB — generoso pra PDF de nota/boleto, contém extrato gigante
 
 
-def salvar_arquivo_upload(
-    arquivo: UploadFile,
-    subpasta: str,
+def salvar_bytes(
     conteudo: bytes,
+    subpasta: str,
+    nome_original: str,
     extensoes_permitidas: set[str] = _EXTENSOES_PDF,
     tamanho_maximo: int = _TAMANHO_MAXIMO_PADRAO,
 ) -> str:
-    """Salva o conteúdo já lido do upload em storage/<subpasta>/ com nome
-    único, e devolve o caminho relativo (usado em arquivo_pdf_path /
-    boleto_arquivo_path / arquivo_original_path e servido depois via /storage).
+    """Salva bytes já em mão (upload HTTP já lido, ou mídia baixada do
+    WhatsApp) em storage/<subpasta>/ com nome único, e devolve o caminho
+    relativo (usado em arquivo_pdf_path / boleto_arquivo_path /
+    arquivo_original_path e servido depois via /storage).
     """
-    extensao = Path(arquivo.filename or "").suffix.lower()
+    extensao = Path(nome_original).suffix.lower()
     if extensao not in extensoes_permitidas:
         raise ValueError(
             f"tipo de arquivo não permitido: {extensao or 'sem extensão'} (permitido: {sorted(extensoes_permitidas)})"
@@ -38,3 +39,13 @@ def salvar_arquivo_upload(
     destino.write_bytes(conteudo)
 
     return f"{subpasta}/{nome_unico}"
+
+
+def salvar_arquivo_upload(
+    arquivo: UploadFile,
+    subpasta: str,
+    conteudo: bytes,
+    extensoes_permitidas: set[str] = _EXTENSOES_PDF,
+    tamanho_maximo: int = _TAMANHO_MAXIMO_PADRAO,
+) -> str:
+    return salvar_bytes(conteudo, subpasta, arquivo.filename or "", extensoes_permitidas, tamanho_maximo)
