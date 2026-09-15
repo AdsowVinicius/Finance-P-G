@@ -7,7 +7,10 @@ from app.models.usuario import Usuario
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.pre_lancamento_whatsapp import VincularTelefoneWhatsapp
 from app.schemas.usuario import UsuarioRead
+from app.services import auditoria_service
 from app.services.auth_service import criar_access_token, verificar_senha
+
+_CAMPOS_SENSIVEIS_USUARIO = {"senha_hash"}
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -41,7 +44,11 @@ def vincular_telefone_whatsapp(
     if ja_vinculado is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esse número já está vinculado a outro usuário")
 
+    antes = auditoria_service.snapshot(usuario_atual, excluir=_CAMPOS_SENSIVEIS_USUARIO)
     usuario_atual.telefone_whatsapp = dados.telefone_whatsapp
+    auditoria_service.registrar_edicao(
+        db, usuario_atual.id, "usuarios", antes, usuario_atual, excluir=_CAMPOS_SENSIVEIS_USUARIO
+    )
     db.commit()
     db.refresh(usuario_atual)
     return usuario_atual

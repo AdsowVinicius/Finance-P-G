@@ -67,6 +67,8 @@ async def importar_extrato(
         importado_por=usuario_atual.id,
     )
     db.add(extrato)
+    db.flush()
+    auditoria_service.registrar_criacao(db, usuario_atual.id, "extratos_importados", extrato)
     db.commit()
     db.refresh(extrato)
 
@@ -106,9 +108,7 @@ def excluir_lancamento(
                 atualizar_status_conciliacao(db, conta.nota_fiscal_id)
         db.delete(conciliacao)
 
-    auditoria_service.registrar_exclusao(
-        db, usuario_atual.id, "lancamentos_extrato", lancamento.id, auditoria_service.snapshot(lancamento)
-    )
+    auditoria_service.registrar_exclusao(db, usuario_atual.id, "lancamentos_extrato", lancamento)
     extrato_id = lancamento.extrato_importado_id
     db.delete(lancamento)
     db.flush()
@@ -117,9 +117,7 @@ def excluir_lancamento(
     if restantes == 0:
         extrato = db.get(ExtratoImportado, extrato_id)
         if extrato is not None:
-            auditoria_service.registrar_exclusao(
-                db, usuario_atual.id, "extratos_importados", extrato.id, auditoria_service.snapshot(extrato)
-            )
+            auditoria_service.registrar_exclusao(db, usuario_atual.id, "extratos_importados", extrato)
             db.delete(extrato)
 
     db.commit()

@@ -16,6 +16,7 @@ from app.models.conta_financeira import ContaFinanceira
 from app.models.enums import FormaBaixa, FormaPagamento, StatusConta, TipoOperacaoNota
 from app.models.parceiro import Parceiro
 from app.models.usuario import Usuario
+from app.services import auditoria_service
 from app.services.dia_util_calculator import DiaUtilCalculator
 from app.services.nota_fiscal_service import atualizar_status_conciliacao
 from app.schemas.conta_financeira import (
@@ -284,19 +285,27 @@ def criar_conta_financeira_manual(
         criado_por=usuario_atual.id,
     )
     db.add(conta)
+    db.flush()
+    auditoria_service.registrar_criacao(db, usuario_atual.id, "contas_financeiras", conta)
     db.commit()
     db.refresh(conta)
     return conta
 
 
 @router.post("/{conta_id}/baixa", response_model=ContaFinanceiraRead, dependencies=[Depends(require_write_access)])
-def dar_baixa_manual(conta_id: uuid.UUID, dados: ContaFinanceiraBaixa, db: Session = Depends(get_db)) -> ContaFinanceira:
+def dar_baixa_manual(
+    conta_id: uuid.UUID,
+    dados: ContaFinanceiraBaixa,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(get_current_user),
+) -> ContaFinanceira:
     conta = db.get(ContaFinanceira, conta_id)
     if conta is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conta não encontrada")
     if conta.status == StatusConta.pago:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Conta já está paga")
 
+    antes = auditoria_service.snapshot(conta)
     conta.data_pagamento = dados.data_pagamento
     conta.valor_pago = dados.valor_pago
     conta.status = StatusConta.pago
@@ -307,6 +316,7 @@ def dar_baixa_manual(conta_id: uuid.UUID, dados: ContaFinanceiraBaixa, db: Sessi
         conta.conta_bancaria_id = dados.conta_bancaria_id
 
     atualizar_status_conciliacao(db, conta.nota_fiscal_id)
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "contas_financeiras", antes, conta)
     db.commit()
     db.refresh(conta)
     return conta
@@ -319,6 +329,7 @@ async def anexar_boleto(
     linha_digitavel: str | None = Form(None),
     codigo_barras: str | None = Form(None),
     db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(get_current_user),
 ) -> ContaFinanceira:
     conta = db.get(ContaFinanceira, conta_id)
     if conta is None:
@@ -330,9 +341,11 @@ async def anexar_boleto(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    antes = auditoria_service.snapshot(conta)
     conta.boleto_arquivo_path = caminho
     conta.boleto_linha_digitavel = linha_digitavel
     conta.boleto_codigo_barras = codigo_barras
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "contas_financeiras", antes, conta)
     db.commit()
     db.refresh(conta)
     return conta

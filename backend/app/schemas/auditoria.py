@@ -13,5 +13,6 @@ class LogAuditoriaRead(BaseModel):
     acao: str
     entidade: str
     entidade_id: uuid.UUID
-    dados_antes: dict[str, Any]
+    dados_antes: dict[str, Any] | None
+    dados_depois: dict[str, Any] | None
     created_at: datetime

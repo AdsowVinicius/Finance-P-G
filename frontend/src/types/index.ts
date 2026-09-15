@@ -178,7 +178,8 @@ export interface LogAuditoria {
   acao: string
   entidade: string
   entidade_id: string
-  dados_antes: Record<string, unknown>
+  dados_antes: Record<string, unknown> | null
+  dados_depois: Record<string, unknown> | null
   created_at: string
 }
 

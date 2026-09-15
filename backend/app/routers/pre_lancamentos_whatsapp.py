@@ -11,6 +11,7 @@ from app.models.pre_lancamento_whatsapp import PreLancamentoWhatsapp
 from app.models.usuario import Usuario
 from app.schemas.conta_financeira import ContaFinanceiraRead
 from app.schemas.pre_lancamento_whatsapp import ConfirmarPreLancamento, PreLancamentoWhatsappRead
+from app.services import auditoria_service
 from app.services.dia_util_calculator import DiaUtilCalculator
 
 router = APIRouter(prefix="/pre-lancamentos-whatsapp", tags=["whatsapp"], dependencies=[Depends(get_current_user)])
@@ -59,13 +60,16 @@ def confirmar(
     )
     db.add(conta)
     db.flush()
+    auditoria_service.registrar_criacao(db, usuario_atual.id, "contas_financeiras", conta)
 
+    antes_pre = auditoria_service.snapshot(pre)
     pre.status = StatusPreLancamentoWhatsapp.confirmado
     pre.parceiro_id = dados.parceiro_id
     pre.centro_custo_id = dados.centro_custo_id
     pre.conta_financeira_id = conta.id
     if dados.forma_pagamento is not None:
         pre.forma_pagamento = dados.forma_pagamento
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "pre_lancamentos_whatsapp", antes_pre, pre)
 
     db.commit()
     db.refresh(conta)
@@ -75,12 +79,16 @@ def confirmar(
 @router.post(
     "/{pre_id}/descartar", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_write_access)]
 )
-def descartar(pre_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
+def descartar(
+    pre_id: uuid.UUID, db: Session = Depends(get_db), usuario_atual: Usuario = Depends(get_current_user)
+) -> None:
     pre = db.get(PreLancamentoWhatsapp, pre_id)
     if pre is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pré-lançamento não encontrado")
     if pre.status != StatusPreLancamentoWhatsapp.pendente_revisao:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pré-lançamento já foi revisado")
 
+    antes = auditoria_service.snapshot(pre)
     pre.status = StatusPreLancamentoWhatsapp.descartado
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "pre_lancamentos_whatsapp", antes, pre)
     db.commit()

@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.lancamento_recorrente import LancamentoRecorrente
 from app.models.usuario import Usuario
 from app.schemas.lancamento_recorrente import LancamentoRecorrenteCreate, LancamentoRecorrenteRead
+from app.services import auditoria_service
 from app.services.recorrencia_service import RecorrenciaService
 
 router = APIRouter(
@@ -49,18 +50,23 @@ def criar_lancamento_recorrente(
     parcelas = RecorrenciaService().gerar_parcelas(lancamento)
     db.add_all(parcelas)
 
+    auditoria_service.registrar_criacao(db, usuario_atual.id, "lancamentos_recorrentes", lancamento)
     db.commit()
     db.refresh(lancamento)
     return lancamento
 
 
 @router.delete("/{lancamento_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_write_access)])
-def desativar_lancamento_recorrente(lancamento_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
+def desativar_lancamento_recorrente(
+    lancamento_id: uuid.UUID, db: Session = Depends(get_db), usuario_atual: Usuario = Depends(get_current_user)
+) -> None:
     """Desativa a recorrência (não gera mais parcelas futuras). Não apaga
     as parcelas (contas_financeiras) já geradas — preserva histórico.
     """
     lancamento = db.get(LancamentoRecorrente, lancamento_id)
     if lancamento is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lançamento recorrente não encontrado")
+    antes = auditoria_service.snapshot(lancamento)
     lancamento.ativo = False
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "lancamentos_recorrentes", antes, lancamento)
     db.commit()

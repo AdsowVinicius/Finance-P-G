@@ -17,6 +17,7 @@ from app.config import settings
 from app.models.enums import FormaPagamento, TipoOperacaoNota
 from app.models.pre_lancamento_whatsapp import PreLancamentoWhatsapp
 from app.models.usuario import Usuario
+from app.services import auditoria_service
 from app.services.assistente_consulta_service import FERRAMENTAS_LEITURA, FUNCOES_LEITURA
 
 _MAX_ITERACOES_TOOL_USE = 4
@@ -95,6 +96,8 @@ def _criar_pre_lancamento(
         forma_pagamento=FormaPagamento(forma_pagamento) if forma_pagamento else None,
     )
     db.add(pre)
+    db.flush()
+    auditoria_service.registrar_criacao(db, usuario_id, "pre_lancamentos_whatsapp", pre)
     db.commit()
     db.refresh(pre)
     return {

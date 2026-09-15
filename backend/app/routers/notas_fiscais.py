@@ -12,6 +12,7 @@ from app.models.enums import StatusProcessamentoNota, TipoNota, TipoOperacaoNota
 from app.models.nota_fiscal import NotaFiscal
 from app.models.usuario import Usuario
 from app.schemas.nota_fiscal import ChaveAcessoManual, NotaFiscalRead
+from app.services import auditoria_service
 from app.services.nota_fiscal_service import NotaFiscalService, obter_ou_criar_parceiro_sentinela
 from app.services.recorrencia_service import RecorrenciaService
 from app.workers.tasks import processar_nota_fiscal
@@ -162,6 +163,7 @@ async def cadastrar_nota_fiscal(
         db.flush()
         # parcelas só são geradas quando o valor de verdade chegar (task)
 
+    auditoria_service.registrar_criacao(db, usuario_atual.id, "notas_fiscais", nota)
     db.commit()
     db.refresh(nota)
 
@@ -172,7 +174,12 @@ async def cadastrar_nota_fiscal(
 
 
 @router.patch("/{nota_id}/chave-acesso", response_model=NotaFiscalRead, dependencies=[Depends(require_write_access)])
-def informar_chave_manual(nota_id: uuid.UUID, dados: ChaveAcessoManual, db: Session = Depends(get_db)) -> NotaFiscal:
+def informar_chave_manual(
+    nota_id: uuid.UUID,
+    dados: ChaveAcessoManual,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(get_current_user),
+) -> NotaFiscal:
     """Fallback não-bloqueante do RF05: se a extração automática falhar
     (ex: PDF escaneado sem camada de texto), o usuário cola a chave aqui.
     """
@@ -191,8 +198,10 @@ def informar_chave_manual(nota_id: uuid.UUID, dados: ChaveAcessoManual, db: Sess
             detail=f"Já existe uma nota cadastrada com esta chave de acesso (id={duplicada.id})",
         )
 
+    antes = auditoria_service.snapshot(nota)
     nota.chave_acesso = dados.chave_acesso
     nota.status_processamento = StatusProcessamentoNota.consultando_api
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "notas_fiscais", antes, nota)
     db.commit()
     db.refresh(nota)
 
@@ -202,7 +211,9 @@ def informar_chave_manual(nota_id: uuid.UUID, dados: ChaveAcessoManual, db: Sess
 
 
 @router.post("/{nota_id}/reprocessar", response_model=NotaFiscalRead, dependencies=[Depends(require_write_access)])
-def reprocessar_nota_fiscal(nota_id: uuid.UUID, db: Session = Depends(get_db)) -> NotaFiscal:
+def reprocessar_nota_fiscal(
+    nota_id: uuid.UUID, db: Session = Depends(get_db), usuario_atual: Usuario = Depends(get_current_user)
+) -> NotaFiscal:
     """Retry manual — só faz sentido quando a última tentativa falhou
     (erro_api). Idempotente: a task não rechama a API se já 'concluido'.
     """
@@ -212,7 +223,9 @@ def reprocessar_nota_fiscal(nota_id: uuid.UUID, db: Session = Depends(get_db)) -
     if not nota.chave_acesso:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nota ainda não tem chave de acesso")
 
+    antes = auditoria_service.snapshot(nota)
     nota.status_processamento = StatusProcessamentoNota.consultando_api
+    auditoria_service.registrar_edicao(db, usuario_atual.id, "notas_fiscais", antes, nota)
     db.commit()
     db.refresh(nota)
 
