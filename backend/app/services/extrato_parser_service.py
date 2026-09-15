@@ -6,6 +6,7 @@ aqui, sem tocar no ConciliacaoMatcher nem no resto do core.
 import csv
 import hashlib
 import io
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -14,6 +15,8 @@ from typing import Protocol
 import ofxparse
 
 from app.models.enums import FormatoExtrato, TipoLancamentoExtrato
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -31,7 +34,14 @@ class ExtratoParserProvider(Protocol):
 
 class OfxParserProvider:
     def parse(self, conteudo: bytes) -> list[LancamentoExtratoDTO]:
-        ofx = ofxparse.OfxParser.parse(io.BytesIO(conteudo))
+        # fail_fast=False: alguns bancos exportam OFX com <NAME> vazio em
+        # certas transações (tarifa, estorno etc.) — sem isso, uma única
+        # transação malformada derruba a importação do extrato inteiro.
+        # Com fail_fast=False o ofxparse pula só a transação ruim e segue.
+        ofx = ofxparse.OfxParser.parse(io.BytesIO(conteudo), fail_fast=False)
+        descartadas = ofx.account.statement.discarded_entries
+        if descartadas:
+            logger.warning("extrato OFX: %d transação(ões) ignorada(s) por erro de formato: %s", len(descartadas), [d["error"] for d in descartadas])
         lancamentos = []
         for transacao in ofx.account.statement.transactions:
             tipo = TipoLancamentoExtrato.credito if transacao.type == "credit" else TipoLancamentoExtrato.debito
