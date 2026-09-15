@@ -9,6 +9,7 @@ from app.routers import (
     assistente,
     auth,
     centros_custo,
+    conciliacoes,
     contas_bancarias,
     contas_financeiras,
     extratos,
@@ -40,6 +41,7 @@ app.include_router(lancamentos_recorrentes.router)
 app.include_router(contas_financeiras.router)
 app.include_router(notas_fiscais.router)
 app.include_router(extratos.router)
+app.include_router(conciliacoes.router)
 app.include_router(assistente.router)
 app.include_router(indicadores.router)
 app.include_router(pre_lancamentos_whatsapp.router)

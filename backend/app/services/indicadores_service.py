@@ -50,7 +50,8 @@ def resumo(db: Session) -> dict[str, Any]:
         )
         return Decimal(total)
 
-    saldo_mes = soma_paga(TipoOperacaoNota.entrada) - soma_paga(TipoOperacaoNota.saida)
+    # entrada = despesa (a pagar), saida = receita (a receber) — schema.sql
+    saldo_mes = soma_paga(TipoOperacaoNota.saida) - soma_paga(TipoOperacaoNota.entrada)
 
     qtd_atrasadas, total_atrasadas = (
         db.query(func.count(), func.coalesce(func.sum(ContaFinanceira.valor), 0))
@@ -60,8 +61,8 @@ def resumo(db: Session) -> dict[str, Any]:
 
     return {
         "saldo_mes": saldo_mes,
-        "total_a_pagar_aberto": soma_aberta(TipoOperacaoNota.saida),
-        "total_a_receber_aberto": soma_aberta(TipoOperacaoNota.entrada),
+        "total_a_pagar_aberto": soma_aberta(TipoOperacaoNota.entrada),
+        "total_a_receber_aberto": soma_aberta(TipoOperacaoNota.saida),
         "contas_atrasadas_qtd": qtd_atrasadas,
         "contas_atrasadas_total": Decimal(total_atrasadas),
     }
@@ -83,7 +84,7 @@ def evolucao_mensal(db: Session, meses: int = 6) -> list[dict[str, Any]]:
     for mes_dt, tipo, total in linhas:
         chave = mes_dt.strftime("%Y-%m")
         bucket = por_mes.setdefault(chave, {"pago": Decimal("0"), "recebido": Decimal("0")})
-        if tipo == TipoOperacaoNota.saida:
+        if tipo == TipoOperacaoNota.entrada:
             bucket["pago"] = Decimal(total)
         else:
             bucket["recebido"] = Decimal(total)
@@ -98,7 +99,7 @@ def evolucao_mensal(db: Session, meses: int = 6) -> list[dict[str, Any]]:
     return resultado
 
 
-def por_centro_custo(db: Session, tipo_operacao: TipoOperacaoNota = TipoOperacaoNota.saida) -> list[dict[str, Any]]:
+def por_centro_custo(db: Session, tipo_operacao: TipoOperacaoNota = TipoOperacaoNota.entrada) -> list[dict[str, Any]]:
     inicio_mes, fim_mes = _limites_mes(date.today())
     linhas = (
         db.query(CentroCusto.nome, func.sum(ContaFinanceira.valor))

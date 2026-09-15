@@ -29,6 +29,7 @@ from app.services import whatsapp_client, whatsapp_service
 from app.services.conciliacao_matcher import ConciliacaoMatcher, LancamentoParaConciliar
 from app.services.extrato_parser_service import ExtratoParserService
 from app.services.nfe_consulta_client import NfeConsultaClient, NfeConsultaError
+from app.services.nota_fiscal_service import atualizar_status_conciliacao
 from app.services.nota_fiscal_service import CNPJ_SENTINELA, obter_ou_criar_parceiro_por_cnpj
 from app.services.recorrencia_service import RecorrenciaService
 from app.workers.celery_app import celery_app
@@ -193,6 +194,7 @@ def processar_importacao_extrato(extrato_importado_id: str, tolerancia_dias: int
                 conta.data_pagamento = lancamento.data
                 conta.valor_pago = conta.valor
                 conta.forma_baixa = FormaBaixa.conciliacao_automatica
+                atualizar_status_conciliacao(db, conta.nota_fiscal_id)
                 candidatas_pendentes.remove(conta)  # não reusar a mesma conta noutro lançamento deste lote
 
             lancamento.status_conciliacao = StatusConciliacaoLinha.conciliado

@@ -46,7 +46,7 @@ _FERRAMENTA_CRIAR_PRE_LANCAMENTO = {
             "tipo_operacao": {
                 "type": "string",
                 "enum": ["entrada", "saida"],
-                "description": "saida = despesa (paguei/gastei), entrada = receita (recebi).",
+                "description": "entrada = despesa (paguei/gastei), saida = receita (recebi).",
             },
             "valor": {"type": "number", "description": "Valor em reais, ex: 20.00"},
             "descricao": {

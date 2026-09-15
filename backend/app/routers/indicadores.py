@@ -23,7 +23,7 @@ def evolucao_mensal(meses: int = 6, db: Session = Depends(get_db)) -> list[dict]
 
 @router.get("/por-centro-custo", response_model=list[ItemCentroCusto])
 def por_centro_custo(
-    tipo_operacao: TipoOperacaoNota = TipoOperacaoNota.saida, db: Session = Depends(get_db)
+    tipo_operacao: TipoOperacaoNota = TipoOperacaoNota.entrada, db: Session = Depends(get_db)
 ) -> list[dict]:
     return indicadores_service.por_centro_custo(db, tipo_operacao=tipo_operacao)
 

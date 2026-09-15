@@ -1,6 +1,192 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { api } from '../lib/api'
-import type { ContaBancaria, ExtratoImportado, FormatoExtrato, LancamentoExtrato } from '../types'
+import type { ContaBancaria, ContaFinanceira, ExtratoImportado, FormatoExtrato, LancamentoExtrato } from '../types'
+
+function formatarMoeda(valor: string): string {
+  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function formatarData(data: string): string {
+  const [ano, mes, dia] = data.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
+function CandidatoConciliacao({ lancamento, onResolvido }: { lancamento: LancamentoExtrato; onResolvido: () => void }) {
+  const [candidatas, setCandidatas] = useState<ContaFinanceira[] | null>(null)
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set())
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.get<ContaFinanceira[]>(`/conciliacoes/${lancamento.id}/candidatas`).then((res) => setCandidatas(res.data))
+  }, [lancamento.id])
+
+  function alternar(id: string) {
+    setSelecionadas((atual) => {
+      const novo = new Set(atual)
+      if (novo.has(id)) novo.delete(id)
+      else novo.add(id)
+      return novo
+    })
+  }
+
+  const soma = (candidatas ?? [])
+    .filter((c) => selecionadas.has(c.id))
+    .reduce((s, c) => s + Number(c.valor), 0)
+  const bate = Math.abs(soma - Number(lancamento.valor)) < 0.001 && selecionadas.size > 0
+
+  async function confirmar() {
+    setErro(null)
+    setEnviando(true)
+    try {
+      await api.post(`/conciliacoes/${lancamento.id}/confirmar`, { contas_financeira_ids: [...selecionadas] })
+      onResolvido()
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      setErro(typeof detail === 'string' ? detail : 'Não foi possível confirmar a conciliação')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function ignorar() {
+    setEnviando(true)
+    try {
+      await api.post(`/conciliacoes/${lancamento.id}/ignorar`)
+      onResolvido()
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded bg-slate-50 p-3">
+      <p className="mb-2 text-xs text-slate-500">
+        Selecione a(s) conta(s) que somam exatamente {formatarMoeda(lancamento.valor)} (o valor do lançamento) — pode
+        marcar mais de uma pra quitar um pagamento dividido em parcelas.
+      </p>
+      {candidatas === null && <p className="text-xs text-slate-400">Carregando candidatas...</p>}
+      {candidatas !== null && candidatas.length === 0 && (
+        <p className="text-xs text-slate-400">Nenhuma conta pendente na mesma direção pra conciliar.</p>
+      )}
+      {candidatas !== null && candidatas.length > 0 && (
+        <ul className="max-h-64 space-y-1 overflow-y-auto">
+          {candidatas.map((c) => (
+            <li key={c.id}>
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-white">
+                <input type="checkbox" checked={selecionadas.has(c.id)} onChange={() => alternar(c.id)} />
+                <span className="flex-1">
+                  {c.descricao}
+                  {c.total_parcelas > 1 && (
+                    <span className="text-slate-400">
+                      {' '}
+                      ({c.numero_parcela}/{c.total_parcelas})
+                    </span>
+                  )}
+                  {' · vence '}
+                  {formatarData(c.data_vencimento)}
+                  {c.status === 'atrasado' && <span className="text-red-600"> (atrasado)</span>}
+                </span>
+                <span className="font-medium">{formatarMoeda(c.valor)}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className={`text-xs font-medium ${bate ? 'text-emerald-600' : 'text-slate-500'}`}>
+          Selecionado: {formatarMoeda(String(soma))} / {formatarMoeda(lancamento.valor)}
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={ignorar}
+            disabled={enviando}
+            className="rounded px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-200 disabled:opacity-50"
+          >
+            Ignorar lançamento
+          </button>
+          <button
+            onClick={confirmar}
+            disabled={enviando || !bate}
+            className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            Confirmar conciliação
+          </button>
+        </div>
+      </div>
+      {erro && <p className="mt-2 text-xs text-red-600">{erro}</p>}
+    </div>
+  )
+}
+
+function ConciliacaoManualSection({ contasBancarias }: { contasBancarias: ContaBancaria[] }) {
+  const [pendentes, setPendentes] = useState<LancamentoExtrato[]>([])
+  const [carregando, setCarregando] = useState(true)
+  const [expandido, setExpandido] = useState<string | null>(null)
+
+  async function carregar() {
+    setCarregando(true)
+    const { data } = await api.get<LancamentoExtrato[]>('/conciliacoes/pendentes')
+    setPendentes(data)
+    setCarregando(false)
+  }
+
+  useEffect(() => {
+    carregar()
+  }, [])
+
+  function nomeConta(id: string): string {
+    return contasBancarias.find((c) => c.id === id)?.apelido ?? '—'
+  }
+
+  if (!carregando && pendentes.length === 0) return null
+
+  return (
+    <div className="mb-6 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70">
+      <div className="flex items-center justify-between rounded-t-lg bg-amber-100 px-4 py-3 text-amber-800">
+        <h3 className="font-semibold">Conciliação manual pendente</h3>
+        <span className="text-sm font-medium">{pendentes.length}</span>
+      </div>
+      {carregando ? (
+        <p className="px-4 py-4 text-sm text-slate-400">Carregando...</p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {pendentes.map((l) => (
+            <li key={l.id} className="px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{l.descricao ?? 'Sem descrição'}</p>
+                  <p className="text-xs text-slate-500">
+                    {nomeConta(l.conta_bancaria_id)} · {formatarData(l.data)} ·{' '}
+                    {l.tipo === 'credito' ? 'Entrou na conta' : 'Saiu da conta'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-slate-800">{formatarMoeda(l.valor)}</span>
+                  <button
+                    onClick={() => setExpandido(expandido === l.id ? null : l.id)}
+                    className="rounded bg-brand-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800"
+                  >
+                    {expandido === l.id ? 'Ocultar' : 'Conciliar'}
+                  </button>
+                </div>
+              </div>
+              {expandido === l.id && (
+                <CandidatoConciliacao
+                  lancamento={l}
+                  onResolvido={() => {
+                    setExpandido(null)
+                    carregar()
+                  }}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 const statusLabel: Record<ExtratoImportado['status'], string> = {
   processando: 'Processando...',
@@ -196,6 +382,8 @@ export function ExtratosPage() {
           </button>
         </form>
       )}
+
+      <ConciliacaoManualSection contasBancarias={contas} />
 
       <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70">
         <table className="w-full text-sm">

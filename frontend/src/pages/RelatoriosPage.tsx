@@ -122,8 +122,9 @@ export function RelatoriosPage() {
     }
   }
 
-  const totalEntrada = contas.filter((c) => c.tipo_operacao === 'entrada').reduce((s, c) => s + Number(c.valor), 0)
-  const totalSaida = contas.filter((c) => c.tipo_operacao === 'saida').reduce((s, c) => s + Number(c.valor), 0)
+  // entrada = despesa (a pagar), saida = receita (a receber) — schema.sql
+  const totalDespesa = contas.filter((c) => c.tipo_operacao === 'entrada').reduce((s, c) => s + Number(c.valor), 0)
+  const totalReceita = contas.filter((c) => c.tipo_operacao === 'saida').reduce((s, c) => s + Number(c.valor), 0)
 
   return (
     <div>
@@ -161,8 +162,8 @@ export function RelatoriosPage() {
               className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
               <option value="">Todos</option>
-              <option value="saida">Despesa</option>
-              <option value="entrada">Receita</option>
+              <option value="entrada">Despesa</option>
+              <option value="saida">Receita</option>
             </select>
           </div>
           <div>
@@ -287,13 +288,13 @@ export function RelatoriosPage() {
           <strong>{contas.length}</strong> lançamentos
         </span>
         <span className="text-emerald-700">
-          Receitas: <strong>{formatarMoeda(String(totalEntrada))}</strong>
+          Receitas: <strong>{formatarMoeda(String(totalReceita))}</strong>
         </span>
         <span className="text-red-700">
-          Despesas: <strong>{formatarMoeda(String(totalSaida))}</strong>
+          Despesas: <strong>{formatarMoeda(String(totalDespesa))}</strong>
         </span>
         <span className="text-slate-800">
-          Saldo: <strong>{formatarMoeda(String(totalEntrada - totalSaida))}</strong>
+          Saldo: <strong>{formatarMoeda(String(totalReceita - totalDespesa))}</strong>
         </span>
       </div>
 
@@ -328,8 +329,8 @@ export function RelatoriosPage() {
             {contas.map((c) => (
               <tr key={c.id} className="border-t border-slate-100">
                 <td className="px-4 py-2">
-                  <span className={c.tipo_operacao === 'saida' ? 'text-red-700' : 'text-emerald-700'}>
-                    {c.tipo_operacao === 'saida' ? 'Despesa' : 'Receita'}
+                  <span className={c.tipo_operacao === 'entrada' ? 'text-red-700' : 'text-emerald-700'}>
+                    {c.tipo_operacao === 'entrada' ? 'Despesa' : 'Receita'}
                   </span>
                 </td>
                 <td className="px-4 py-2">

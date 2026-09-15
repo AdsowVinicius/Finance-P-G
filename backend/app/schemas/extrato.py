@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import FormatoExtrato, StatusConciliacaoLinha, StatusImportacao, TipoLancamentoExtrato, TipoMatch
 
@@ -41,3 +41,7 @@ class ConciliacaoRead(BaseModel):
     nota_fiscal_id: uuid.UUID | None
     valor_conciliado: Decimal
     tipo_match: TipoMatch
+
+
+class ConciliarManualRequest(BaseModel):
+    contas_financeira_ids: list[uuid.UUID] = Field(min_length=1)

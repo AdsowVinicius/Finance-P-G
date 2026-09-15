@@ -1,10 +1,13 @@
 import io
 import re
+import uuid
 
 from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
-from app.models.enums import TipoOperacaoNota, TipoParceiro
+from app.models.conta_financeira import ContaFinanceira
+from app.models.enums import StatusConta, StatusNota, TipoOperacaoNota, TipoParceiro
+from app.models.nota_fiscal import NotaFiscal
 from app.models.parceiro import Parceiro
 
 _CHAVE_ACESSO_REGEX = re.compile(r"(?:\d[\s.\-]?){44}")
@@ -70,6 +73,32 @@ def obter_ou_criar_parceiro_por_cnpj(
     db.add(parceiro)
     db.flush()
     return parceiro
+
+
+def atualizar_status_conciliacao(db: Session, nota_fiscal_id: uuid.UUID | None) -> None:
+    """Recalcula o status da nota (pendente/parcialmente_conciliada/conciliada)
+    a partir do status atual de baixa das parcelas (contas_financeiras)
+    vinculadas a ela. Chamado sempre que uma dessas parcelas muda de status
+    (baixa manual, conciliação automática ou manual). Nunca mexe em nota
+    cancelada.
+    """
+    if nota_fiscal_id is None:
+        return
+    nota = db.get(NotaFiscal, nota_fiscal_id)
+    if nota is None or nota.status == StatusNota.cancelada:
+        return
+
+    parcelas = db.query(ContaFinanceira).filter(ContaFinanceira.nota_fiscal_id == nota_fiscal_id).all()
+    if not parcelas:
+        return
+
+    pagas = [p for p in parcelas if p.status == StatusConta.pago]
+    if len(pagas) == len(parcelas):
+        nota.status = StatusNota.conciliada
+    elif pagas:
+        nota.status = StatusNota.parcialmente_conciliada
+    else:
+        nota.status = StatusNota.pendente
 
 
 class NotaFiscalService:

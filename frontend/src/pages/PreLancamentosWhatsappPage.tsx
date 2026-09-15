@@ -136,7 +136,7 @@ function RevisaoForm({ pre, parceiros, centros, onResolvido }: RevisaoFormProps)
       </p>
       <p className="mt-1 text-sm italic text-slate-600">"{pre.mensagem_original}"</p>
       <p className="mt-1 text-sm text-slate-800">
-        <span className="font-semibold">{pre.tipo_operacao === 'saida' ? 'Despesa' : 'Receita'}</span>
+        <span className="font-semibold">{pre.tipo_operacao === 'entrada' ? 'Despesa' : 'Receita'}</span>
         {' · '}
         {pre.descricao} {pre.fornecedor_texto && `· ${pre.fornecedor_texto}`} · {formatarMoeda(pre.valor)}
         {pre.forma_pagamento && ` · ${FORMA_PAGAMENTO_LABEL[pre.forma_pagamento]}`}

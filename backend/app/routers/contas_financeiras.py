@@ -17,6 +17,7 @@ from app.models.enums import FormaBaixa, FormaPagamento, StatusConta, TipoOperac
 from app.models.parceiro import Parceiro
 from app.models.usuario import Usuario
 from app.services.dia_util_calculator import DiaUtilCalculator
+from app.services.nota_fiscal_service import atualizar_status_conciliacao
 from app.schemas.conta_financeira import (
     ContaFinanceiraBaixa,
     ContaFinanceiraCreate,
@@ -172,7 +173,7 @@ def exportar_csv(
     for linha in linhas:
         escritor.writerow(
             [
-                "Receita" if linha.tipo_operacao == TipoOperacaoNota.entrada else "Despesa",
+                "Despesa" if linha.tipo_operacao == TipoOperacaoNota.entrada else "Receita",
                 linha.descricao,
                 linha.razao_social,
                 str(linha.valor).replace(".", ","),
@@ -305,6 +306,7 @@ def dar_baixa_manual(conta_id: uuid.UUID, dados: ContaFinanceiraBaixa, db: Sessi
     if dados.conta_bancaria_id is not None:
         conta.conta_bancaria_id = dados.conta_bancaria_id
 
+    atualizar_status_conciliacao(db, conta.nota_fiscal_id)
     db.commit()
     db.refresh(conta)
     return conta

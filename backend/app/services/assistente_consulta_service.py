@@ -51,7 +51,7 @@ _FERRAMENTAS: list[dict[str, Any]] = [
                 "tipo_operacao": {
                     "type": "string",
                     "enum": ["entrada", "saida"],
-                    "description": "Filtra só contas a receber (entrada) ou a pagar (saida). Omitir para ambos.",
+                    "description": "Filtra só contas a pagar (entrada) ou a receber (saida). Omitir para ambos.",
                 },
             },
         },
@@ -65,7 +65,7 @@ _FERRAMENTAS: list[dict[str, Any]] = [
                 "tipo_operacao": {
                     "type": "string",
                     "enum": ["entrada", "saida"],
-                    "description": "Filtra só contas a receber (entrada) ou a pagar (saida). Omitir para ambos.",
+                    "description": "Filtra só contas a pagar (entrada) ou a receber (saida). Omitir para ambos.",
                 },
             },
         },
@@ -233,13 +233,13 @@ def _total_por_tipo(
 def consultar_total_gasto(
     db: Session, mes: int | None = None, ano: int | None = None, apenas_pagos: bool = False
 ) -> dict[str, Any]:
-    return _total_por_tipo(db, TipoOperacaoNota.saida, mes, ano, apenas_pagos)
+    return _total_por_tipo(db, TipoOperacaoNota.entrada, mes, ano, apenas_pagos)
 
 
 def consultar_recebimentos(
     db: Session, mes: int | None = None, ano: int | None = None, apenas_pagos: bool = False
 ) -> dict[str, Any]:
-    return _total_por_tipo(db, TipoOperacaoNota.entrada, mes, ano, apenas_pagos)
+    return _total_por_tipo(db, TipoOperacaoNota.saida, mes, ano, apenas_pagos)
 
 
 def consultar_saldo_periodo(db: Session, mes: int | None = None, ano: int | None = None) -> dict[str, Any]:
