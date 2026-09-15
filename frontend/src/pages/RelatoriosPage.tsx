@@ -53,6 +53,14 @@ function formatarData(data: string): string {
   return `${dia}/${mes}/${ano}`
 }
 
+/** "2026-09" -> {inicio: "2026-09-01", fim: "2026-09-30"} (último dia calculado de verdade, sem chutar 30/31). */
+function limitesDoMes(mesReferencia: string): { inicio: string; fim: string } {
+  const [ano, mes] = mesReferencia.split('-').map(Number)
+  const ultimoDia = new Date(ano, mes, 0).getDate()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return { inicio: `${ano}-${pad(mes)}-01`, fim: `${ano}-${pad(mes)}-${pad(ultimoDia)}` }
+}
+
 function paramsDeFiltros(filtros: Filtros): Record<string, string> {
   const params: Record<string, string> = {}
   if (filtros.tipoOperacao) params.tipo_operacao = filtros.tipoOperacao
@@ -70,6 +78,7 @@ function paramsDeFiltros(filtros: Filtros): Record<string, string> {
 
 export function RelatoriosPage() {
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
+  const [mesReferencia, setMesReferencia] = useState('')
   const [contas, setContas] = useState<ContaFinanceira[]>([])
   const [parceiros, setParceiros] = useState<Parceiro[]>([])
   const [centros, setCentros] = useState<CentroCusto[]>([])
@@ -86,7 +95,17 @@ export function RelatoriosPage() {
       setCentros(centrosRes.data)
       setNomesParceiros(Object.fromEntries(parceirosRes.data.map((p) => [p.id, p.razao_social])))
     })
-    buscar(FILTROS_VAZIOS)
+
+    // Preset: mês corrente inteiro, com base na data do SERVIDOR (não no
+    // relógio do navegador, que pode estar em outro fuso).
+    api.get<{ data: string }>('/sistema/data-atual').then(({ data }) => {
+      const mesAtual = data.data.slice(0, 7)
+      const { inicio, fim } = limitesDoMes(mesAtual)
+      const filtrosIniciais = { ...FILTROS_VAZIOS, dataInicio: inicio, dataFim: fim }
+      setMesReferencia(mesAtual)
+      setFiltros(filtrosIniciais)
+      buscar(filtrosIniciais)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -97,7 +116,17 @@ export function RelatoriosPage() {
     setCarregando(false)
   }
 
+  function mudarMesReferencia(mes: string) {
+    setMesReferencia(mes)
+    if (!mes) return
+    const { inicio, fim } = limitesDoMes(mes)
+    const novosFiltros = { ...filtros, dataInicio: inicio, dataFim: fim }
+    setFiltros(novosFiltros)
+    buscar(novosFiltros)
+  }
+
   function limparFiltros() {
+    setMesReferencia('')
     setFiltros(FILTROS_VAZIOS)
     buscar(FILTROS_VAZIOS)
   }
@@ -146,6 +175,15 @@ export function RelatoriosPage() {
 
       <div className="mb-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Mês de referência</label>
+            <input
+              type="month"
+              value={mesReferencia}
+              onChange={(e) => mudarMesReferencia(e.target.value)}
+              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+            />
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Busca (descrição)</label>
             <input
@@ -232,7 +270,10 @@ export function RelatoriosPage() {
             <input
               type="date"
               value={filtros.dataInicio}
-              onChange={(e) => setFiltros({ ...filtros, dataInicio: e.target.value })}
+              onChange={(e) => {
+                setMesReferencia('')
+                setFiltros({ ...filtros, dataInicio: e.target.value })
+              }}
               className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
@@ -241,7 +282,10 @@ export function RelatoriosPage() {
             <input
               type="date"
               value={filtros.dataFim}
-              onChange={(e) => setFiltros({ ...filtros, dataFim: e.target.value })}
+              onChange={(e) => {
+                setMesReferencia('')
+                setFiltros({ ...filtros, dataFim: e.target.value })
+              }}
               className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>

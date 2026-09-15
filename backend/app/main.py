@@ -19,6 +19,7 @@ from app.routers import (
     notas_fiscais,
     parceiros,
     pre_lancamentos_whatsapp,
+    sistema,
     usuarios,
     whatsapp_webhook,
 )
@@ -48,6 +49,7 @@ app.include_router(indicadores.router)
 app.include_router(pre_lancamentos_whatsapp.router)
 app.include_router(whatsapp_webhook.router)
 app.include_router(auditoria.router)
+app.include_router(sistema.router)
 
 Path(settings.storage_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/storage", StaticFiles(directory=settings.storage_dir), name="storage")
