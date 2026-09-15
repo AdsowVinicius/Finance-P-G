@@ -172,6 +172,16 @@ export interface ItemStatusNota {
   quantidade: number
 }
 
+export interface LogAuditoria {
+  id: string
+  usuario_id: string
+  acao: string
+  entidade: string
+  entidade_id: string
+  dados_antes: Record<string, unknown>
+  created_at: string
+}
+
 export interface NotaFiscal {
   id: string
   parceiro_id: string

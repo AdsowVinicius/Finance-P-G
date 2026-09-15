@@ -8,6 +8,7 @@ import {
   LogOut,
   MessageCircle,
   Repeat,
+  ScrollText,
   Search,
   Tag,
   UserCog,
@@ -31,7 +32,10 @@ const links = [
   { to: '/contas-bancarias', label: 'Contas Bancárias', icon: Building2 },
 ]
 
-const linksAdmin = [{ to: '/usuarios', label: 'Usuários', icon: UserCog }]
+const linksAdmin = [
+  { to: '/usuarios', label: 'Usuários', icon: UserCog },
+  { to: '/auditoria', label: 'Auditoria', icon: ScrollText },
+]
 
 const papelLabel: Record<string, string> = {
   financeiro: 'Financeiro',

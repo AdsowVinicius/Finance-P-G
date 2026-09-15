@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routers import (
     assistente,
+    auditoria,
     auth,
     centros_custo,
     conciliacoes,
@@ -46,6 +47,7 @@ app.include_router(assistente.router)
 app.include_router(indicadores.router)
 app.include_router(pre_lancamentos_whatsapp.router)
 app.include_router(whatsapp_webhook.router)
+app.include_router(auditoria.router)
 
 Path(settings.storage_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/storage", StaticFiles(directory=settings.storage_dir), name="storage")

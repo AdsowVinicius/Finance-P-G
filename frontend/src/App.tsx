@@ -3,6 +3,7 @@ import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
 import { AssistentePage } from './pages/AssistentePage'
+import { AuditoriaPage } from './pages/AuditoriaPage'
 import { CentrosCustoPage } from './pages/CentrosCustoPage'
 import { ContasBancariasPage } from './pages/ContasBancariasPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -38,6 +39,7 @@ function App() {
         <Route path="/centros-custo" element={<CentrosCustoPage />} />
         <Route path="/contas-bancarias" element={<ContasBancariasPage />} />
         <Route path="/usuarios" element={<UsuariosPage />} />
+        <Route path="/auditoria" element={<AuditoriaPage />} />
         <Route path="/lancamentos-recorrentes" element={<LancamentosRecorrentesPage />} />
         <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
         <Route path="/extratos" element={<ExtratosPage />} />

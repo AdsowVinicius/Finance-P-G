@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
 import type { ContaBancaria, ContaFinanceira, ExtratoImportado, FormatoExtrato, LancamentoExtrato } from '../types'
 
@@ -120,6 +121,8 @@ function CandidatoConciliacao({ lancamento, onResolvido }: { lancamento: Lancame
 }
 
 function ConciliacaoManualSection({ contasBancarias }: { contasBancarias: ContaBancaria[] }) {
+  const { usuario } = useAuth()
+  const podeExcluir = usuario?.papel === 'admin' || usuario?.papel === 'master'
   const [pendentes, setPendentes] = useState<LancamentoExtrato[]>([])
   const [carregando, setCarregando] = useState(true)
   const [expandido, setExpandido] = useState<string | null>(null)
@@ -137,6 +140,16 @@ function ConciliacaoManualSection({ contasBancarias }: { contasBancarias: ContaB
 
   function nomeConta(id: string): string {
     return contasBancarias.find((c) => c.id === id)?.apelido ?? '—'
+  }
+
+  async function excluir(lancamento: LancamentoExtrato) {
+    const confirmado = window.confirm(
+      `Excluir de vez o lançamento "${lancamento.descricao ?? 'sem descrição'}" (${formatarMoeda(lancamento.valor)})? ` +
+        'Essa ação não pode ser desfeita (fica registrada na auditoria).',
+    )
+    if (!confirmado) return
+    await api.delete(`/extratos/lancamentos/${lancamento.id}`)
+    carregar()
   }
 
   if (!carregando && pendentes.length === 0) return null
@@ -169,6 +182,14 @@ function ConciliacaoManualSection({ contasBancarias }: { contasBancarias: ContaB
                   >
                     {expandido === l.id ? 'Ocultar' : 'Conciliar'}
                   </button>
+                  {podeExcluir && (
+                    <button
+                      onClick={() => excluir(l)}
+                      className="rounded px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                    >
+                      Excluir
+                    </button>
+                  )}
                 </div>
               </div>
               {expandido === l.id && (

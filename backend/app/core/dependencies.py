@@ -50,3 +50,7 @@ def require_roles(*papeis_permitidos: PapelUsuario) -> Callable[[Usuario], Usuar
 # Cadastros base (parceiros, centros de custo, contas bancárias) e lançamentos
 # financeiros podem ser escritos por financeiro/admin/master; "sub" só lê.
 require_write_access = require_roles(PapelUsuario.financeiro, PapelUsuario.admin, PapelUsuario.master)
+
+# Exclusão definitiva (irreversível, sem histórico de dado) é mais restrita
+# que escrita normal — só admin/master, nunca financeiro.
+require_admin = require_roles(PapelUsuario.admin, PapelUsuario.master)
