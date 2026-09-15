@@ -43,9 +43,11 @@ Fonte da verdade: `schema.sql` (já fechado e validado — não redesenhar, só 
 
 Ver `requisitos-funcionais-nao-funcionais.md` pra lista completa.
 
-**Dentro do MVP**: conciliação bancária (OFX/CSV), pipeline de nota fiscal (PDF→chave→API→XML), contas a pagar/receber com recorrência, boletos anexados, dashboard de vencimento.
+**Dentro do MVP**: conciliação bancária (OFX/CSV), pipeline de nota fiscal (PDF→chave→API→XML), contas a pagar/receber com recorrência, boletos anexados, dashboard de vencimento, assistente de consulta em linguagem natural (RF16).
 
-**Fora do MVP (roadmap, não implementar agora)**: funcionários/projetos (mão de obra), receita recorrente por contrato/medição, Open Finance real, certificado digital A1 + Manifestação do Destinatário, multiempresa, OCR de PDF escaneado.
+**Assistente de consulta (RF16)**: chat que responde perguntas tipo "quanto gastei esse mês" consultando o banco em tempo real. Usa Claude Haiku 4.5 via API da Anthropic, chamando um **conjunto fixo de funções de consulta pré-definidas** (`consultar_vencimentos`, `consultar_total_gasto`, `consultar_recebimentos` etc.) — nunca geração livre de SQL, por segurança. Endpoint síncrono no FastAPI, não precisa de fila Celery.
+
+**Fora do MVP (roadmap, não implementar agora)**: funcionários/projetos (mão de obra), receita recorrente por contrato/medição, Open Finance real, certificado digital A1 + Manifestação do Destinatário, lançamento/consulta via WhatsApp (reaproveita o motor do RF16 + pré-lançamento pendente de confirmação), multiempresa, OCR de PDF escaneado.
 
 ## Testes
 

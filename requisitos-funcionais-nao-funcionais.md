@@ -19,6 +19,7 @@
 | RF13 | O sistema deve permitir cadastrar projetos e vincular funcionários contratados a um projeto, registrando data de contratação e de demissão. |
 | RF14 | O sistema deve permitir configurar receita recorrente vinculada a um projeto/contrato de cliente (ex: faturamento por medição quinzenal/mensal), com encerramento automático na data de fim do contrato. |
 | RF15 | O sistema deve permitir cadastro de parceiros (fornecedores e clientes) e de centros de custo. |
+| RF16 | O sistema deve oferecer um assistente de consulta em linguagem natural (ex: "quanto gastei esse mês?", "o que vence essa semana?") que consulta o banco de dados em tempo real através de um conjunto fixo de funções pré-definidas (não geração livre de SQL), usando a API da Anthropic (Claude Haiku 4.5). |
 
 ## Requisitos Não Funcionais (RNF)
 
@@ -39,5 +40,6 @@
 
 - Conexão bancária automática via Open Finance (substituindo o import manual de OFX/CSV).
 - Captação automática de nota fiscal via certificado digital A1 + Manifestação do Destinatário (substituindo a consulta por API paga).
+- Lançamento e consulta via WhatsApp — mensagem em linguagem natural gera pré-lançamento pendente de confirmação (reaproveita o motor de IA do RF16).
 - Suporte a múltiplas empresas (multiempresa).
 - OCR para extração de chave de acesso em PDFs escaneados/sem camada de texto.

@@ -130,3 +130,13 @@ Adicionado `status_processamento` em `notas_fiscais` (enum: `aguardando_extracao
 - Não cabia no prazo de entrega desta semana.
 
 **Posicionamento pra apresentação**: enquadrar como evolução natural do módulo de notas fiscais — "hoje a captação é sob demanda via API, a evolução é captação automática e passiva direto da Receita Federal, com o mesmo modelo de dados por trás (nenhuma migração de schema necessária)".
+
+### 5.2 Lançamento e consulta via WhatsApp
+
+**O que é**: integração com WhatsApp Business API permitindo conversar direto com o sistema pelo WhatsApp — tanto pra **consultar** (reaproveita o mesmo motor do assistente RF16) quanto pra **lançar despesa informal** em linguagem natural. Ex: usuário manda "gastei 20 reais aqui na padaria do seu Zé" → sistema interpreta e cria um **pré-lançamento** (saída, valor R$20, fornecedor "Padaria do seu Zé") como pendente de revisão — não lança direto, porque falta centro de custo obrigatório e confirmação do fornecedor. O financeiro confirma/completa dentro do sistema antes de virar lançamento de verdade.
+
+**Por que vale a pena depois**: captura despesa informal (sem nota fiscal) no momento em que acontece, no canal que o usuário já usa o dia inteiro — reduz o "esqueci de lançar" que hoje se perde no Excel.
+
+**Por que ficou fora do MVP**: exige conta comercial no WhatsApp Business API (Meta Cloud API ou provedor tipo Twilio/Z-API), webhook público, vínculo do número de WhatsApp ao usuário do sistema, e um fluxo de pré-lançamento/confirmação que ainda não existe na modelagem — é extensão real de escopo, não ajuste pequeno.
+
+**Reaproveitamento técnico**: mesmo motor de linguagem natural do RF16 (Claude Haiku 4.5), só troca o canal de entrada e adiciona uma função de escrita (`criar_pre_lancamento`) às funções de leitura já existentes.
