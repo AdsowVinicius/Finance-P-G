@@ -14,6 +14,13 @@ class UsuarioCreate(BaseModel):
     papel: PapelUsuario = PapelUsuario.sub
 
 
+class UsuarioUpdate(BaseModel):
+    nome: str | None = None
+    papel: PapelUsuario | None = None
+    ativo: bool | None = None
+    senha: str | None = Field(default=None, min_length=8, max_length=72)
+
+
 class UsuarioRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

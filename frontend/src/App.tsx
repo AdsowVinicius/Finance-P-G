@@ -13,6 +13,7 @@ import { LoginPage } from './pages/LoginPage'
 import { NotasFiscaisPage } from './pages/NotasFiscaisPage'
 import { ParceirosPage } from './pages/ParceirosPage'
 import { PreLancamentosWhatsappPage } from './pages/PreLancamentosWhatsappPage'
+import { UsuariosPage } from './pages/UsuariosPage'
 
 function App() {
   const { usuario } = useAuth()
@@ -34,6 +35,7 @@ function App() {
         <Route path="/parceiros" element={<ParceirosPage />} />
         <Route path="/centros-custo" element={<CentrosCustoPage />} />
         <Route path="/contas-bancarias" element={<ContasBancariasPage />} />
+        <Route path="/usuarios" element={<UsuariosPage />} />
         <Route path="/lancamentos-recorrentes" element={<LancamentosRecorrentesPage />} />
         <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
         <Route path="/extratos" element={<ExtratosPage />} />

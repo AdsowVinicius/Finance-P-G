@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Repeat,
   Tag,
+  UserCog,
   Users,
 } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
@@ -28,6 +29,8 @@ const links = [
   { to: '/contas-bancarias', label: 'Contas Bancárias', icon: Building2 },
 ]
 
+const linksAdmin = [{ to: '/usuarios', label: 'Usuários', icon: UserCog }]
+
 const papelLabel: Record<string, string> = {
   financeiro: 'Financeiro',
   admin: 'Administrador',
@@ -46,7 +49,7 @@ export function Layout() {
         </div>
 
         <nav className="flex-1 space-y-1 px-3">
-          {links.map((link) => {
+          {[...links, ...(usuario && ['admin', 'master'].includes(usuario.papel) ? linksAdmin : [])].map((link) => {
             const Icon = link.icon
             return (
               <NavLink

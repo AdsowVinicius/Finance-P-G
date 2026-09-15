@@ -17,6 +17,7 @@ from app.routers import (
     notas_fiscais,
     parceiros,
     pre_lancamentos_whatsapp,
+    usuarios,
     whatsapp_webhook,
 )
 
@@ -31,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(usuarios.router)
 app.include_router(parceiros.router)
 app.include_router(centros_custo.router)
 app.include_router(contas_bancarias.router)
