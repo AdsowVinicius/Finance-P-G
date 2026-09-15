@@ -8,8 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
-from app.models.enums import FormaBaixa, StatusConta, TipoOperacaoNota
-from app.models.pg_enums import forma_baixa_pg, status_conta_pg, tipo_operacao_nota_pg
+from app.models.enums import FormaBaixa, FormaPagamento, StatusConta, TipoOperacaoNota
+from app.models.pg_enums import forma_baixa_pg, forma_pagamento_pg, status_conta_pg, tipo_operacao_nota_pg
 
 
 class ContaFinanceira(Base):
@@ -37,6 +37,7 @@ class ContaFinanceira(Base):
     valor_pago: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     status: Mapped[StatusConta] = mapped_column(status_conta_pg, nullable=False, default=StatusConta.pendente)
     forma_baixa: Mapped[FormaBaixa | None] = mapped_column(forma_baixa_pg)
+    forma_pagamento: Mapped[FormaPagamento | None] = mapped_column(forma_pagamento_pg)
 
     boleto_linha_digitavel: Mapped[str | None] = mapped_column(String(60))
     boleto_codigo_barras: Mapped[str | None] = mapped_column(String(60))

@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import StatusPreLancamentoWhatsapp, TipoOperacaoNota
+from app.models.enums import FormaPagamento, StatusPreLancamentoWhatsapp, TipoOperacaoNota
 
 
 class PreLancamentoWhatsappRead(BaseModel):
@@ -18,6 +18,7 @@ class PreLancamentoWhatsappRead(BaseModel):
     valor: Decimal | None
     descricao: str | None
     fornecedor_texto: str | None
+    forma_pagamento: FormaPagamento | None
     parceiro_id: uuid.UUID | None
     centro_custo_id: uuid.UUID | None
     conta_financeira_id: uuid.UUID | None
@@ -31,6 +32,7 @@ class ConfirmarPreLancamento(BaseModel):
     valor: Decimal = Field(gt=0)
     descricao: str = Field(min_length=1, max_length=200)
     data_vencimento: date
+    forma_pagamento: FormaPagamento | None = None
     conta_bancaria_id: uuid.UUID | None = None
 
 

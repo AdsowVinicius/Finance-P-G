@@ -8,6 +8,7 @@ import {
   LogOut,
   MessageCircle,
   Repeat,
+  Search,
   Tag,
   UserCog,
   Users,
@@ -19,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext'
 const links = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/indicadores', label: 'Indicadores', icon: BarChart3 },
+  { to: '/relatorios', label: 'Relatórios', icon: Search },
   { to: '/assistente', label: 'Assistente', icon: Bot },
   { to: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { to: '/notas-fiscais', label: 'Notas Fiscais', icon: FileText },

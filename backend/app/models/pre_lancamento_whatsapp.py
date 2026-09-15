@@ -8,8 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
-from app.models.enums import StatusPreLancamentoWhatsapp, TipoOperacaoNota
-from app.models.pg_enums import status_pre_lancamento_whatsapp_pg, tipo_operacao_nota_pg
+from app.models.enums import FormaPagamento, StatusPreLancamentoWhatsapp, TipoOperacaoNota
+from app.models.pg_enums import forma_pagamento_pg, status_pre_lancamento_whatsapp_pg, tipo_operacao_nota_pg
 
 
 class PreLancamentoWhatsapp(Base):
@@ -29,6 +29,7 @@ class PreLancamentoWhatsapp(Base):
     valor: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     descricao: Mapped[str | None] = mapped_column(String(200))
     fornecedor_texto: Mapped[str | None] = mapped_column(String(200))
+    forma_pagamento: Mapped[FormaPagamento | None] = mapped_column(forma_pagamento_pg)
 
     parceiro_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("parceiros.id"))
     centro_custo_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("centros_custo.id"))

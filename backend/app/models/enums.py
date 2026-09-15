@@ -105,3 +105,13 @@ class StatusPreLancamentoWhatsapp(str, enum.Enum):
     pendente_revisao = "pendente_revisao"
     confirmado = "confirmado"
     descartado = "descartado"
+
+
+class FormaPagamento(str, enum.Enum):
+    pix = "pix"
+    dinheiro = "dinheiro"
+    cartao_credito = "cartao_credito"
+    cartao_debito = "cartao_debito"
+    boleto = "boleto"
+    transferencia = "transferencia"
+    outro = "outro"

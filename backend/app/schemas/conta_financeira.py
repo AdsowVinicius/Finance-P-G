@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import FormaBaixa, StatusConta, TipoOperacaoNota
+from app.models.enums import FormaBaixa, FormaPagamento, StatusConta, TipoOperacaoNota
 
 
 class ContaFinanceiraCreate(BaseModel):
@@ -17,11 +17,13 @@ class ContaFinanceiraCreate(BaseModel):
     valor: Decimal = Field(gt=0)
     data_vencimento: date
     conta_bancaria_id: uuid.UUID | None = None
+    forma_pagamento: FormaPagamento | None = None
 
 
 class ContaFinanceiraBaixa(BaseModel):
     data_pagamento: date
     valor_pago: Decimal = Field(gt=0)
+    forma_pagamento: FormaPagamento | None = None
     conta_bancaria_id: uuid.UUID | None = None
 
 
@@ -44,6 +46,7 @@ class ContaFinanceiraRead(BaseModel):
     valor_pago: Decimal | None
     status: StatusConta
     forma_baixa: FormaBaixa | None
+    forma_pagamento: FormaPagamento | None
     boleto_linha_digitavel: str | None
     boleto_codigo_barras: str | None
     boleto_arquivo_path: str | None

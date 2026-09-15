@@ -54,6 +54,7 @@ def confirmar(
         data_vencimento_original=dados.data_vencimento,
         data_vencimento=data_ajustada,
         conta_bancaria_id=dados.conta_bancaria_id,
+        forma_pagamento=dados.forma_pagamento,
         criado_por=usuario_atual.id,
     )
     db.add(conta)
@@ -63,6 +64,8 @@ def confirmar(
     pre.parceiro_id = dados.parceiro_id
     pre.centro_custo_id = dados.centro_custo_id
     pre.conta_financeira_id = conta.id
+    if dados.forma_pagamento is not None:
+        pre.forma_pagamento = dados.forma_pagamento
 
     db.commit()
     db.refresh(conta)

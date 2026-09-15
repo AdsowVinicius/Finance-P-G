@@ -1,6 +1,7 @@
 import { MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../lib/api'
+import { FORMA_PAGAMENTO_LABEL } from '../lib/formaPagamento'
 import type { CentroCusto, Parceiro, PreLancamentoWhatsapp, Usuario } from '../types'
 
 function formatarMoeda(valor: string | null): string {
@@ -93,6 +94,7 @@ function RevisaoForm({ pre, parceiros, centros, onResolvido }: RevisaoFormProps)
   const [valor, setValor] = useState(pre.valor ?? '')
   const [descricao, setDescricao] = useState(pre.descricao ?? '')
   const [dataVencimento, setDataVencimento] = useState(new Date().toISOString().slice(0, 10))
+  const [formaPagamento, setFormaPagamento] = useState(pre.forma_pagamento ?? '')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -106,6 +108,7 @@ function RevisaoForm({ pre, parceiros, centros, onResolvido }: RevisaoFormProps)
         valor,
         descricao,
         data_vencimento: dataVencimento,
+        forma_pagamento: formaPagamento || null,
       })
       onResolvido()
     } catch (err) {
@@ -136,9 +139,10 @@ function RevisaoForm({ pre, parceiros, centros, onResolvido }: RevisaoFormProps)
         <span className="font-semibold">{pre.tipo_operacao === 'saida' ? 'Despesa' : 'Receita'}</span>
         {' · '}
         {pre.descricao} {pre.fornecedor_texto && `· ${pre.fornecedor_texto}`} · {formatarMoeda(pre.valor)}
+        {pre.forma_pagamento && ` · ${FORMA_PAGAMENTO_LABEL[pre.forma_pagamento]}`}
       </p>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 rounded bg-slate-50 p-3 sm:grid-cols-5">
+      <div className="mt-3 grid grid-cols-2 gap-2 rounded bg-slate-50 p-3 sm:grid-cols-6">
         <select
           value={parceiroId}
           onChange={(e) => setParceiroId(e.target.value)}
@@ -163,6 +167,18 @@ function RevisaoForm({ pre, parceiros, centros, onResolvido }: RevisaoFormProps)
             </option>
           ))}
         </select>
+        <select
+          value={formaPagamento}
+          onChange={(e) => setFormaPagamento(e.target.value as typeof formaPagamento)}
+          className="rounded border border-slate-300 px-2 py-1.5 text-xs"
+        >
+          <option value="">Forma de pagamento...</option>
+          {Object.entries(FORMA_PAGAMENTO_LABEL).map(([valor, label]) => (
+            <option key={valor} value={valor}>
+              {label}
+            </option>
+          ))}
+        </select>
         <input
           type="number"
           step="0.01"
@@ -180,7 +196,7 @@ function RevisaoForm({ pre, parceiros, centros, onResolvido }: RevisaoFormProps)
           value={descricao}
           onChange={(e) => setDescricao(e.target.value)}
           placeholder="Descrição"
-          className="rounded border border-slate-300 px-2 py-1.5 text-xs sm:col-span-3"
+          className="rounded border border-slate-300 px-2 py-1.5 text-xs sm:col-span-4"
         />
         <div className="flex gap-2 sm:col-span-2">
           <button

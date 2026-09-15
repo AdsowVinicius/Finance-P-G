@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { FORMA_PAGAMENTO_LABEL } from '../lib/formaPagamento'
 import type { ContaFinanceira, DashboardVencimento, Parceiro } from '../types'
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:8000'
@@ -26,6 +27,7 @@ function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: Se
   const [contaEmBaixa, setContaEmBaixa] = useState<string | null>(null)
   const [dataPagamento, setDataPagamento] = useState('')
   const [valorPago, setValorPago] = useState('')
+  const [formaPagamento, setFormaPagamento] = useState('')
 
   const [contaEmBoleto, setContaEmBoleto] = useState<string | null>(null)
   const [arquivoBoleto, setArquivoBoleto] = useState<File | null>(null)
@@ -38,12 +40,14 @@ function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: Se
     setContaEmBaixa(conta.id)
     setDataPagamento(new Date().toISOString().slice(0, 10))
     setValorPago(conta.valor)
+    setFormaPagamento('')
   }
 
   async function confirmarBaixa(contaId: string) {
     await api.post(`/contas-financeiras/${contaId}/baixa`, {
       data_pagamento: dataPagamento,
       valor_pago: valorPago,
+      forma_pagamento: formaPagamento || null,
     })
     setContaEmBaixa(null)
     onMudou()
@@ -148,6 +152,21 @@ function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: Se
                       onChange={(e) => setValorPago(e.target.value)}
                       className="w-28 rounded border border-slate-300 px-2 py-1 text-sm"
                     />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Forma de pagamento</label>
+                    <select
+                      value={formaPagamento}
+                      onChange={(e) => setFormaPagamento(e.target.value)}
+                      className="rounded border border-slate-300 px-2 py-1 text-sm"
+                    >
+                      <option value="">Não informado</option>
+                      {Object.entries(FORMA_PAGAMENTO_LABEL).map(([valor, label]) => (
+                        <option key={valor} value={valor}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <button
                     onClick={() => confirmarBaixa(conta.id)}

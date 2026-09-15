@@ -44,6 +44,7 @@ export type TipoOperacaoNota = 'entrada' | 'saida'
 export type Periodicidade = 'mensal' | 'quinzenal' | 'semanal' | 'anual' | 'personalizada_dias'
 export type StatusConta = 'pendente' | 'pago' | 'atrasado' | 'cancelado'
 export type FormaBaixa = 'manual' | 'conciliacao_automatica'
+export type FormaPagamento = 'pix' | 'dinheiro' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'transferencia' | 'outro'
 export type TipoNota = 'nfe' | 'nfse'
 export type StatusNota = 'pendente' | 'parcialmente_conciliada' | 'conciliada' | 'cancelada'
 export type StatusProcessamentoNota =
@@ -86,6 +87,7 @@ export interface ContaFinanceira {
   valor_pago: string | null
   status: StatusConta
   forma_baixa: FormaBaixa | null
+  forma_pagamento: FormaPagamento | null
   boleto_linha_digitavel: string | null
   boleto_codigo_barras: string | null
   boleto_arquivo_path: string | null
@@ -138,6 +140,7 @@ export interface PreLancamentoWhatsapp {
   valor: string | null
   descricao: string | null
   fornecedor_texto: string | null
+  forma_pagamento: FormaPagamento | null
   parceiro_id: string | null
   centro_custo_id: string | null
   conta_financeira_id: string | null

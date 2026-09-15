@@ -8,6 +8,7 @@ from sqlalchemy import Enum
 
 from app.models.enums import (
     FormaBaixa,
+    FormaPagamento,
     FormatoExtrato,
     PapelUsuario,
     Periodicidade,
@@ -48,3 +49,4 @@ tipo_match_pg = _pg_enum(TipoMatch, "tipo_match")
 status_projeto_pg = _pg_enum(StatusProjeto, "status_projeto")
 status_funcionario_pg = _pg_enum(StatusFuncionario, "status_funcionario")
 status_pre_lancamento_whatsapp_pg = _pg_enum(StatusPreLancamentoWhatsapp, "status_pre_lancamento_whatsapp")
+forma_pagamento_pg = _pg_enum(FormaPagamento, "forma_pagamento")

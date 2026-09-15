@@ -13,6 +13,7 @@ import { LoginPage } from './pages/LoginPage'
 import { NotasFiscaisPage } from './pages/NotasFiscaisPage'
 import { ParceirosPage } from './pages/ParceirosPage'
 import { PreLancamentosWhatsappPage } from './pages/PreLancamentosWhatsappPage'
+import { RelatoriosPage } from './pages/RelatoriosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
       >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/indicadores" element={<IndicadoresPage />} />
+        <Route path="/relatorios" element={<RelatoriosPage />} />
         <Route path="/assistente" element={<AssistentePage />} />
         <Route path="/whatsapp" element={<PreLancamentosWhatsappPage />} />
         <Route path="/parceiros" element={<ParceirosPage />} />

@@ -1,8 +1,11 @@
+import csv
+import io
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,7 +13,8 @@ from app.core.dependencies import get_current_user, require_write_access
 from app.core.storage import salvar_arquivo_upload
 from app.database import get_db
 from app.models.conta_financeira import ContaFinanceira
-from app.models.enums import FormaBaixa, StatusConta, TipoOperacaoNota
+from app.models.enums import FormaBaixa, FormaPagamento, StatusConta, TipoOperacaoNota
+from app.models.parceiro import Parceiro
 from app.models.usuario import Usuario
 from app.services.dia_util_calculator import DiaUtilCalculator
 from app.schemas.conta_financeira import (
@@ -23,16 +27,21 @@ from app.schemas.conta_financeira import (
 router = APIRouter(prefix="/contas-financeiras", tags=["contas a pagar/receber"], dependencies=[Depends(get_current_user)])
 
 
-@router.get("", response_model=list[ContaFinanceiraRead])
-def listar_contas_financeiras(
-    tipo_operacao: TipoOperacaoNota | None = None,
-    status_conta: StatusConta | None = None,
-    parceiro_id: uuid.UUID | None = None,
-    centro_custo_id: uuid.UUID | None = None,
-    nota_fiscal_id: uuid.UUID | None = None,
-    lancamento_recorrente_id: uuid.UUID | None = None,
-    db: Session = Depends(get_db),
-) -> list[ContaFinanceira]:
+def _query_relatorio(
+    db: Session,
+    tipo_operacao: TipoOperacaoNota | None,
+    status_conta: StatusConta | None,
+    parceiro_id: uuid.UUID | None,
+    centro_custo_id: uuid.UUID | None,
+    nota_fiscal_id: uuid.UUID | None,
+    lancamento_recorrente_id: uuid.UUID | None,
+    forma_pagamento: FormaPagamento | None,
+    data_inicio: date | None,
+    data_fim: date | None,
+    valor_min: Decimal | None,
+    valor_max: Decimal | None,
+    busca: str | None,
+):
     query = db.query(ContaFinanceira)
     if tipo_operacao is not None:
         query = query.filter(ContaFinanceira.tipo_operacao == tipo_operacao)
@@ -46,7 +55,142 @@ def listar_contas_financeiras(
         query = query.filter(ContaFinanceira.nota_fiscal_id == nota_fiscal_id)
     if lancamento_recorrente_id is not None:
         query = query.filter(ContaFinanceira.lancamento_recorrente_id == lancamento_recorrente_id)
-    return query.order_by(ContaFinanceira.data_vencimento).all()
+    if forma_pagamento is not None:
+        query = query.filter(ContaFinanceira.forma_pagamento == forma_pagamento)
+    if data_inicio is not None:
+        query = query.filter(ContaFinanceira.data_vencimento >= data_inicio)
+    if data_fim is not None:
+        query = query.filter(ContaFinanceira.data_vencimento <= data_fim)
+    if valor_min is not None:
+        query = query.filter(ContaFinanceira.valor >= valor_min)
+    if valor_max is not None:
+        query = query.filter(ContaFinanceira.valor <= valor_max)
+    if busca:
+        query = query.filter(ContaFinanceira.descricao.ilike(f"%{busca}%"))
+    return query
+
+
+@router.get("", response_model=list[ContaFinanceiraRead])
+def listar_contas_financeiras(
+    tipo_operacao: TipoOperacaoNota | None = None,
+    status_conta: StatusConta | None = None,
+    parceiro_id: uuid.UUID | None = None,
+    centro_custo_id: uuid.UUID | None = None,
+    nota_fiscal_id: uuid.UUID | None = None,
+    lancamento_recorrente_id: uuid.UUID | None = None,
+    forma_pagamento: FormaPagamento | None = None,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
+    valor_min: Decimal | None = None,
+    valor_max: Decimal | None = None,
+    busca: str | None = None,
+    db: Session = Depends(get_db),
+) -> list[ContaFinanceira]:
+    query = _query_relatorio(
+        db,
+        tipo_operacao,
+        status_conta,
+        parceiro_id,
+        centro_custo_id,
+        nota_fiscal_id,
+        lancamento_recorrente_id,
+        forma_pagamento,
+        data_inicio,
+        data_fim,
+        valor_min,
+        valor_max,
+        busca,
+    )
+    return query.order_by(ContaFinanceira.data_vencimento.desc()).all()
+
+
+@router.get("/exportar-csv")
+def exportar_csv(
+    tipo_operacao: TipoOperacaoNota | None = None,
+    status_conta: StatusConta | None = None,
+    parceiro_id: uuid.UUID | None = None,
+    centro_custo_id: uuid.UUID | None = None,
+    nota_fiscal_id: uuid.UUID | None = None,
+    lancamento_recorrente_id: uuid.UUID | None = None,
+    forma_pagamento: FormaPagamento | None = None,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
+    valor_min: Decimal | None = None,
+    valor_max: Decimal | None = None,
+    busca: str | None = None,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Mesmos filtros do GET /contas-financeiras, exportados em CSV."""
+    query = _query_relatorio(
+        db,
+        tipo_operacao,
+        status_conta,
+        parceiro_id,
+        centro_custo_id,
+        nota_fiscal_id,
+        lancamento_recorrente_id,
+        forma_pagamento,
+        data_inicio,
+        data_fim,
+        valor_min,
+        valor_max,
+        busca,
+    )
+    linhas = (
+        query.join(Parceiro, ContaFinanceira.parceiro_id == Parceiro.id)
+        .with_entities(
+            ContaFinanceira.tipo_operacao,
+            ContaFinanceira.descricao,
+            Parceiro.razao_social,
+            ContaFinanceira.valor,
+            ContaFinanceira.data_vencimento,
+            ContaFinanceira.data_pagamento,
+            ContaFinanceira.status,
+            ContaFinanceira.forma_pagamento,
+            ContaFinanceira.numero_parcela,
+            ContaFinanceira.total_parcelas,
+        )
+        .order_by(ContaFinanceira.data_vencimento.desc())
+        .all()
+    )
+
+    buffer = io.StringIO()
+    escritor = csv.writer(buffer, delimiter=";")
+    escritor.writerow(
+        [
+            "Tipo",
+            "Descrição",
+            "Parceiro",
+            "Valor",
+            "Vencimento",
+            "Pagamento",
+            "Status",
+            "Forma de pagamento",
+            "Parcela",
+        ]
+    )
+    for linha in linhas:
+        escritor.writerow(
+            [
+                "Receita" if linha.tipo_operacao == TipoOperacaoNota.entrada else "Despesa",
+                linha.descricao,
+                linha.razao_social,
+                str(linha.valor).replace(".", ","),
+                linha.data_vencimento.isoformat(),
+                linha.data_pagamento.isoformat() if linha.data_pagamento else "",
+                linha.status.value,
+                linha.forma_pagamento.value if linha.forma_pagamento else "",
+                f"{linha.numero_parcela}/{linha.total_parcelas}",
+            ]
+        )
+
+    buffer.seek(0)
+    nome_arquivo = f"lancamentos_{date.today().isoformat()}.csv"
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )
 
 
 @router.get("/dashboard", response_model=DashboardVencimentoResponse)
@@ -135,6 +279,7 @@ def criar_conta_financeira_manual(
         data_vencimento_original=dados.data_vencimento,
         data_vencimento=data_ajustada,
         conta_bancaria_id=dados.conta_bancaria_id,
+        forma_pagamento=dados.forma_pagamento,
         criado_por=usuario_atual.id,
     )
     db.add(conta)
@@ -155,6 +300,8 @@ def dar_baixa_manual(conta_id: uuid.UUID, dados: ContaFinanceiraBaixa, db: Sessi
     conta.valor_pago = dados.valor_pago
     conta.status = StatusConta.pago
     conta.forma_baixa = FormaBaixa.manual
+    if dados.forma_pagamento is not None:
+        conta.forma_pagamento = dados.forma_pagamento
     if dados.conta_bancaria_id is not None:
         conta.conta_bancaria_id = dados.conta_bancaria_id
 

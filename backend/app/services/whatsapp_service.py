@@ -14,7 +14,7 @@ import anthropic
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.enums import TipoOperacaoNota
+from app.models.enums import FormaPagamento, TipoOperacaoNota
 from app.models.pre_lancamento_whatsapp import PreLancamentoWhatsapp
 from app.models.usuario import Usuario
 from app.services.assistente_consulta_service import FERRAMENTAS_LEITURA, FUNCOES_LEITURA
@@ -57,6 +57,15 @@ _FERRAMENTA_CRIAR_PRE_LANCAMENTO = {
                 "type": "string",
                 "description": "Nome do fornecedor/cliente mencionado, se houver.",
             },
+            "forma_pagamento": {
+                "type": "string",
+                "enum": ["pix", "dinheiro", "cartao_credito", "cartao_debito", "boleto", "transferencia", "outro"],
+                "description": (
+                    "Como foi ou será pago, se a mensagem mencionar (ex: 'paguei no pix' → pix, 'no "
+                    "débito' → cartao_debito, 'no crédito' → cartao_credito, 'em dinheiro' → dinheiro). "
+                    "Importante pra conciliação bancária depois. Omitir se a mensagem não disser."
+                ),
+            },
         },
         "required": ["tipo_operacao", "valor", "descricao"],
     },
@@ -73,6 +82,7 @@ def _criar_pre_lancamento(
     valor: float,
     descricao: str,
     fornecedor_texto: str | None = None,
+    forma_pagamento: str | None = None,
 ) -> dict[str, Any]:
     pre = PreLancamentoWhatsapp(
         telefone=telefone,
@@ -82,6 +92,7 @@ def _criar_pre_lancamento(
         valor=Decimal(str(valor)),
         descricao=descricao,
         fornecedor_texto=fornecedor_texto,
+        forma_pagamento=FormaPagamento(forma_pagamento) if forma_pagamento else None,
     )
     db.add(pre)
     db.commit()
