@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -20,6 +21,7 @@ class PontoEvolucaoMensal(BaseModel):
 
 
 class ItemCentroCusto(BaseModel):
+    centro_custo_id: uuid.UUID
     centro_custo: str
     total: Decimal
 

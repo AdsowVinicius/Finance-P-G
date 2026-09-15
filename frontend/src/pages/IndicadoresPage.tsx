@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Percent, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Bar,
   BarChart,
@@ -13,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { KpiCard } from '../components/KpiCard'
 import { api } from '../lib/api'
 import type { ItemCentroCusto, ItemGastoPrevistoDia, ItemStatusNota, PontoEvolucaoMensal, ResumoIndicadores } from '../types'
 
@@ -65,102 +67,108 @@ function ultimoDiaDoMes(mesReferencia: string): number {
   return new Date(ano, mes, 0).getDate()
 }
 
+function dataDoDia(mesReferencia: string, dia: number): string {
+  const [ano, mes] = mesReferencia.split('-').map(Number)
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+}
+
+interface BucketGastoPrevisto {
+  rotulo: string
+  valor: number
+  dataInicio: string | null
+  dataFim: string | null
+}
+
 function agruparGastosPrevistos(
   mesReferencia: string,
   itens: ItemGastoPrevistoDia[],
   granularidade: Granularidade,
-): { rotulo: string; valor: number }[] {
+): BucketGastoPrevisto[] {
   if (!mesReferencia) return []
+  const ultimoDia = ultimoDiaDoMes(mesReferencia)
 
   if (granularidade === 'dia') {
     const totalPorDia = new Map(itens.map((i) => [diaDoMes(i.data), Number(i.total)]))
-    return Array.from({ length: ultimoDiaDoMes(mesReferencia) }, (_, idx) => ({
-      rotulo: String(idx + 1),
-      valor: totalPorDia.get(idx + 1) ?? 0,
-    }))
+    return Array.from({ length: ultimoDia }, (_, idx) => {
+      const dia = idx + 1
+      const data = dataDoDia(mesReferencia, dia)
+      return { rotulo: String(dia), valor: totalPorDia.get(dia) ?? 0, dataInicio: data, dataFim: data }
+    })
   }
 
   if (granularidade === 'semana') {
-    const numSemanas = Math.ceil(ultimoDiaDoMes(mesReferencia) / 7)
+    const numSemanas = Math.ceil(ultimoDia / 7)
     const totais = Array.from({ length: numSemanas }, () => 0)
     for (const item of itens) {
       totais[Math.ceil(diaDoMes(item.data) / 7) - 1] += Number(item.total)
     }
-    return totais.map((valor, idx) => ({ rotulo: `Sem ${idx + 1}`, valor }))
+    return totais.map((valor, idx) => ({
+      rotulo: `Sem ${idx + 1}`,
+      valor,
+      dataInicio: dataDoDia(mesReferencia, idx * 7 + 1),
+      dataFim: dataDoDia(mesReferencia, Math.min((idx + 1) * 7, ultimoDia)),
+    }))
   }
 
   const totais = new Array(7).fill(0)
   for (const item of itens) {
     totais[diaDaSemana(item.data)] += Number(item.total)
   }
-  return ORDEM_SEMANA.map((idx) => ({ rotulo: DIAS_SEMANA_LABEL[idx], valor: totais[idx] }))
-}
-
-interface KpiCardProps {
-  titulo: string
-  valor: string
-  icone: React.ElementType
-  corIcone: string
-  corFundo: string
-}
-
-function KpiCard({ titulo, valor, icone: Icone, corIcone, corFundo }: KpiCardProps) {
-  return (
-    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
-      <div className="flex items-start gap-3">
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${corFundo}`}>
-          <Icone size={20} className={corIcone} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</p>
-          <p className="text-lg font-semibold leading-tight text-slate-800">{valor}</p>
-        </div>
-      </div>
-    </div>
-  )
+  // dia da semana agrega datas espalhadas pelo mês inteiro — não dá pra
+  // representar como um único intervalo, então não é clicável.
+  return ORDEM_SEMANA.map((idx) => ({ rotulo: DIAS_SEMANA_LABEL[idx], valor: totais[idx], dataInicio: null, dataFim: null }))
 }
 
 export function IndicadoresPage() {
+  const navigate = useNavigate()
+
+  const [mesReferencia, setMesReferencia] = useState('')
   const [resumo, setResumo] = useState<ResumoIndicadores | null>(null)
   const [evolucao, setEvolucao] = useState<PontoEvolucaoMensal[]>([])
   const [porCentroCusto, setPorCentroCusto] = useState<ItemCentroCusto[]>([])
   const [notasPorStatus, setNotasPorStatus] = useState<ItemStatusNota[]>([])
-  const [carregando, setCarregando] = useState(true)
-
-  const [mesGastosPrevistos, setMesGastosPrevistos] = useState('')
   const [gastosPrevistos, setGastosPrevistos] = useState<ItemGastoPrevistoDia[]>([])
   const [granularidade, setGranularidade] = useState<Granularidade>('dia')
+  const [carregando, setCarregando] = useState(true)
 
   useEffect(() => {
     async function carregar() {
-      const [resumoRes, evolucaoRes, centroCustoRes, notasRes, dataAtualRes] = await Promise.all([
-        api.get<ResumoIndicadores>('/indicadores/resumo'),
+      const [evolucaoRes, notasRes, dataAtualRes] = await Promise.all([
         api.get<PontoEvolucaoMensal[]>('/indicadores/evolucao-mensal', { params: { meses: 6 } }),
-        api.get<ItemCentroCusto[]>('/indicadores/por-centro-custo'),
         api.get<ItemStatusNota[]>('/indicadores/notas-por-status'),
         api.get<{ data: string }>('/sistema/data-atual'),
       ])
-      setResumo(resumoRes.data)
       setEvolucao(evolucaoRes.data)
-      setPorCentroCusto(centroCustoRes.data)
       setNotasPorStatus(notasRes.data)
-      setCarregando(false)
 
       const mesAtual = dataAtualRes.data.data.slice(0, 7)
-      setMesGastosPrevistos(mesAtual)
-      const gastosRes = await api.get<ItemGastoPrevistoDia[]>('/indicadores/gastos-previstos-por-dia', {
-        params: { mes: mesAtual },
-      })
-      setGastosPrevistos(gastosRes.data)
+      setMesReferencia(mesAtual)
+      await carregarDoMes(mesAtual)
+      setCarregando(false)
     }
     carregar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function mudarMesGastosPrevistos(mes: string) {
-    setMesGastosPrevistos(mes)
+  async function carregarDoMes(mes: string) {
+    const [resumoRes, centroCustoRes, gastosRes] = await Promise.all([
+      api.get<ResumoIndicadores>('/indicadores/resumo', { params: { mes } }),
+      api.get<ItemCentroCusto[]>('/indicadores/por-centro-custo', { params: { mes } }),
+      api.get<ItemGastoPrevistoDia[]>('/indicadores/gastos-previstos-por-dia', { params: { mes } }),
+    ])
+    setResumo(resumoRes.data)
+    setPorCentroCusto(centroCustoRes.data)
+    setGastosPrevistos(gastosRes.data)
+  }
+
+  async function mudarMesReferencia(mes: string) {
+    setMesReferencia(mes)
     if (!mes) return
-    const { data } = await api.get<ItemGastoPrevistoDia[]>('/indicadores/gastos-previstos-por-dia', { params: { mes } })
-    setGastosPrevistos(data)
+    await carregarDoMes(mes)
+  }
+
+  function irParaRelatorios(params: Record<string, string>) {
+    navigate(`/relatorios?${new URLSearchParams(params).toString()}`)
   }
 
   if (carregando || !resumo) {
@@ -168,13 +176,14 @@ export function IndicadoresPage() {
   }
 
   const dadosEvolucao = evolucao.map((p) => ({
+    mesRaw: p.mes,
     mes: formatarMes(p.mes),
     Pago: Number(p.total_pago),
     Recebido: Number(p.total_recebido),
   }))
 
-  const dadosCentroCusto = porCentroCusto.map((c) => ({ nome: c.centro_custo, valor: Number(c.total) }))
-  const dadosGastosPrevistos = agruparGastosPrevistos(mesGastosPrevistos, gastosPrevistos, granularidade)
+  const dadosCentroCusto = porCentroCusto.map((c) => ({ nome: c.centro_custo, valor: Number(c.total), id: c.centro_custo_id }))
+  const dadosGastosPrevistos = agruparGastosPrevistos(mesReferencia, gastosPrevistos, granularidade)
   const dadosStatus = notasPorStatus.map((s) => ({
     nome: STATUS_LABEL[s.status] ?? s.status,
     valor: s.quantidade,
@@ -183,9 +192,22 @@ export function IndicadoresPage() {
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-slate-800">Indicadores</h2>
-        <p className="text-sm text-slate-500">Visão geral financeira — saldo, evolução e distribuição por centro de custo.</p>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Indicadores</h2>
+          <p className="text-sm text-slate-500">
+            Clique em um KPI ou numa barra do gráfico pra ver os lançamentos correspondentes em Relatórios.
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">Mês de referência</label>
+          <input
+            type="month"
+            value={mesReferencia}
+            onChange={(e) => mudarMesReferencia(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -195,6 +217,7 @@ export function IndicadoresPage() {
           icone={Wallet}
           corIcone="text-brand-700"
           corFundo="bg-brand-100"
+          onClick={() => irParaRelatorios({ mes: mesReferencia })}
         />
         <KpiCard
           titulo="A pagar (em aberto)"
@@ -202,6 +225,7 @@ export function IndicadoresPage() {
           icone={ArrowUpCircle}
           corIcone="text-red-600"
           corFundo="bg-red-100"
+          onClick={() => irParaRelatorios({ tipo_operacao: 'entrada' })}
         />
         <KpiCard
           titulo="A receber (em aberto)"
@@ -209,6 +233,7 @@ export function IndicadoresPage() {
           icone={ArrowDownCircle}
           corIcone="text-emerald-600"
           corFundo="bg-emerald-100"
+          onClick={() => irParaRelatorios({ tipo_operacao: 'saida' })}
         />
         <KpiCard
           titulo="Atrasadas"
@@ -216,6 +241,7 @@ export function IndicadoresPage() {
           icone={AlertTriangle}
           corIcone="text-amber-600"
           corFundo="bg-amber-100"
+          onClick={() => irParaRelatorios({ status_conta: 'atrasado' })}
         />
         <KpiCard
           titulo="Juros pagos (mês)"
@@ -223,6 +249,7 @@ export function IndicadoresPage() {
           icone={Percent}
           corIcone="text-orange-600"
           corFundo="bg-orange-100"
+          onClick={() => irParaRelatorios({ mes: mesReferencia, status_conta: 'pago' })}
         />
       </div>
 
@@ -241,8 +268,20 @@ export function IndicadoresPage() {
               />
               <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Recebido" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Pago" fill="#dc2626" radius={[4, 4, 0, 0]} />
+              <Bar
+                dataKey="Recebido"
+                fill="#10b981"
+                radius={[4, 4, 0, 0]}
+                cursor="pointer"
+                onClick={(_, i) => irParaRelatorios({ mes: dadosEvolucao[i].mesRaw, tipo_operacao: 'saida' })}
+              />
+              <Bar
+                dataKey="Pago"
+                fill="#dc2626"
+                radius={[4, 4, 0, 0]}
+                cursor="pointer"
+                onClick={(_, i) => irParaRelatorios({ mes: dadosEvolucao[i].mesRaw, tipo_operacao: 'entrada' })}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -284,7 +323,12 @@ export function IndicadoresPage() {
               />
               <YAxis dataKey="nome" type="category" width={160} tick={{ fontSize: 12, fill: '#334155' }} axisLine={false} tickLine={false} />
               <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
-              <Bar dataKey="valor" radius={[0, 4, 4, 0]}>
+              <Bar
+                dataKey="valor"
+                radius={[0, 4, 4, 0]}
+                cursor="pointer"
+                onClick={(_, i) => irParaRelatorios({ centro_custo_id: dadosCentroCusto[i].id, mes: mesReferencia, tipo_operacao: 'entrada' })}
+              >
                 {dadosCentroCusto.map((_, i) => (
                   <Cell key={i} fill={CORES_CENTRO_CUSTO[i % CORES_CENTRO_CUSTO.length]} />
                 ))}
@@ -297,23 +341,15 @@ export function IndicadoresPage() {
       <div className="mt-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-slate-700">Gastos previstos por dia do mês</h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="month"
-              value={mesGastosPrevistos}
-              onChange={(e) => mudarMesGastosPrevistos(e.target.value)}
-              className="rounded border border-slate-300 px-2 py-1 text-sm"
-            />
-            <select
-              value={granularidade}
-              onChange={(e) => setGranularidade(e.target.value as Granularidade)}
-              className="rounded border border-slate-300 px-2 py-1 text-sm"
-            >
-              <option value="dia">Por dia</option>
-              <option value="semana">Por semana</option>
-              <option value="dia_semana">Por dia da semana</option>
-            </select>
-          </div>
+          <select
+            value={granularidade}
+            onChange={(e) => setGranularidade(e.target.value as Granularidade)}
+            className="rounded border border-slate-300 px-2 py-1 text-sm"
+          >
+            <option value="dia">Por dia</option>
+            <option value="semana">Por semana</option>
+            <option value="dia_semana">Por dia da semana</option>
+          </select>
         </div>
         {dadosGastosPrevistos.every((d) => d.valor === 0) ? (
           <p className="py-10 text-center text-sm text-slate-400">Sem gastos previstos nesse mês.</p>
@@ -329,7 +365,17 @@ export function IndicadoresPage() {
                 tickFormatter={(v) => formatarMoedaCompacta(v)}
               />
               <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
-              <Bar dataKey="valor" fill="#dc2626" radius={[4, 4, 0, 0]} />
+              <Bar
+                dataKey="valor"
+                fill="#dc2626"
+                radius={[4, 4, 0, 0]}
+                cursor={granularidade === 'dia_semana' ? 'default' : 'pointer'}
+                onClick={(_, i) => {
+                  const bucket = dadosGastosPrevistos[i]
+                  if (!bucket.dataInicio || !bucket.dataFim) return
+                  irParaRelatorios({ data_inicio: bucket.dataInicio, data_fim: bucket.dataFim, tipo_operacao: 'entrada' })
+                }}
+              />
             </BarChart>
           </ResponsiveContainer>
         )}

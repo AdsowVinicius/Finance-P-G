@@ -22,9 +22,14 @@ def _limites_mes(referencia: date) -> tuple[date, date]:
     return referencia.replace(day=1), date(referencia.year, referencia.month, ultimo_dia)
 
 
-def resumo(db: Session) -> dict[str, Any]:
-    hoje = date.today()
-    inicio_mes, fim_mes = _limites_mes(hoje)
+def resumo(db: Session, mes_referencia: date | None = None) -> dict[str, Any]:
+    """saldo_mes e juros_pagos_mes são escopados pelo mês de referência (padrão:
+    mês atual do servidor). total_a_pagar_aberto/total_a_receber_aberto e
+    contas_atrasadas_* são sempre "o que está em aberto agora" — não fazem
+    sentido presos a um mês (uma conta atrasada continua atrasada não importa
+    qual mês você está olhando), então ficam de fora do parâmetro.
+    """
+    inicio_mes, fim_mes = _limites_mes(mes_referencia or date.today())
 
     def soma_paga(tipo: TipoOperacaoNota) -> Decimal:
         total = (
@@ -120,21 +125,23 @@ def evolucao_mensal(db: Session, meses: int = 6) -> list[dict[str, Any]]:
     return resultado
 
 
-def por_centro_custo(db: Session, tipo_operacao: TipoOperacaoNota = TipoOperacaoNota.entrada) -> list[dict[str, Any]]:
-    inicio_mes, fim_mes = _limites_mes(date.today())
+def por_centro_custo(
+    db: Session, tipo_operacao: TipoOperacaoNota = TipoOperacaoNota.entrada, mes_referencia: date | None = None
+) -> list[dict[str, Any]]:
+    inicio_mes, fim_mes = _limites_mes(mes_referencia or date.today())
     linhas = (
-        db.query(CentroCusto.nome, func.sum(ContaFinanceira.valor))
+        db.query(CentroCusto.id, CentroCusto.nome, func.sum(ContaFinanceira.valor))
         .join(ContaFinanceira, ContaFinanceira.centro_custo_id == CentroCusto.id)
         .filter(
             ContaFinanceira.tipo_operacao == tipo_operacao,
             ContaFinanceira.data_vencimento >= inicio_mes,
             ContaFinanceira.data_vencimento <= fim_mes,
         )
-        .group_by(CentroCusto.nome)
+        .group_by(CentroCusto.id, CentroCusto.nome)
         .order_by(func.sum(ContaFinanceira.valor).desc())
         .all()
     )
-    return [{"centro_custo": nome, "total": Decimal(total)} for nome, total in linhas]
+    return [{"centro_custo_id": centro_id, "centro_custo": nome, "total": Decimal(total)} for centro_id, nome, total in linhas]
 
 
 def gastos_previstos_por_dia(db: Session, mes_referencia: date) -> list[dict[str, Any]]:

@@ -176,6 +176,7 @@ export interface PontoEvolucaoMensal {
 }
 
 export interface ItemCentroCusto {
+  centro_custo_id: string
   centro_custo: string
   total: string
 }

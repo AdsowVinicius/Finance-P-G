@@ -1,7 +1,10 @@
+import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, CalendarClock, Clock, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { KpiCard } from '../components/KpiCard'
 import { api } from '../lib/api'
 import { FORMA_PAGAMENTO_LABEL } from '../lib/formaPagamento'
-import type { ContaFinanceira, DashboardVencimento, Parceiro } from '../types'
+import type { ContaFinanceira, DashboardVencimento, Parceiro, ResumoIndicadores } from '../types'
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:8000'
 
@@ -16,6 +19,7 @@ function formatarData(data: string): string {
 
 interface SecaoProps {
   titulo: string
+  icone: React.ElementType
   corClasse: string
   contas: ContaFinanceira[]
   total: string
@@ -23,7 +27,7 @@ interface SecaoProps {
   onMudou: () => void
 }
 
-function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: SecaoProps) {
+function Secao({ titulo, icone: Icone, corClasse, contas, total, nomesParceiros, onMudou }: SecaoProps) {
   const [contaEmBaixa, setContaEmBaixa] = useState<string | null>(null)
   const [dataPagamento, setDataPagamento] = useState('')
   const [valorPago, setValorPago] = useState('')
@@ -80,7 +84,10 @@ function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: Se
   return (
     <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/70">
       <div className={`flex items-center justify-between rounded-t-lg px-4 py-3 ${corClasse}`}>
-        <h3 className="font-semibold">{titulo}</h3>
+        <h3 className="flex items-center gap-2 font-semibold">
+          <Icone size={16} />
+          {titulo}
+        </h3>
         <span className="text-sm font-medium">
           {contas.length} {contas.length === 1 ? 'conta' : 'contas'} · {formatarMoeda(total)}
         </span>
@@ -233,25 +240,33 @@ function Secao({ titulo, corClasse, contas, total, nomesParceiros, onMudou }: Se
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate()
   const [dashboard, setDashboard] = useState<DashboardVencimento | null>(null)
+  const [resumo, setResumo] = useState<ResumoIndicadores | null>(null)
   const [nomesParceiros, setNomesParceiros] = useState<Record<string, string>>({})
   const [carregando, setCarregando] = useState(true)
   const [atualizando, setAtualizando] = useState(false)
 
   async function carregar() {
     setCarregando(true)
-    const [dashRes, parceirosRes] = await Promise.all([
+    const [dashRes, parceirosRes, resumoRes] = await Promise.all([
       api.get<DashboardVencimento>('/contas-financeiras/dashboard'),
       api.get<Parceiro[]>('/parceiros', { params: { apenas_ativos: false } }),
+      api.get<ResumoIndicadores>('/indicadores/resumo'),
     ])
     setDashboard(dashRes.data)
     setNomesParceiros(Object.fromEntries(parceirosRes.data.map((p) => [p.id, p.razao_social])))
+    setResumo(resumoRes.data)
     setCarregando(false)
   }
 
   useEffect(() => {
     carregar()
   }, [])
+
+  function irParaRelatorios(params: Record<string, string>) {
+    navigate(`/relatorios?${new URLSearchParams(params).toString()}`)
+  }
 
   async function atualizarAtrasados() {
     setAtualizando(true)
@@ -260,14 +275,17 @@ export function DashboardPage() {
     setAtualizando(false)
   }
 
-  if (carregando || !dashboard) {
+  if (carregando || !dashboard || !resumo) {
     return <p className="text-sm text-slate-400">Carregando...</p>
   }
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800">Contas a pagar / receber — vencimento</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Visão geral</h2>
+          <p className="text-sm text-slate-500">Clique num KPI ou numa conta pra ver os detalhes em Relatórios.</p>
+        </div>
         <button
           onClick={atualizarAtrasados}
           disabled={atualizando}
@@ -277,9 +295,49 @@ export function DashboardPage() {
         </button>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          titulo="Saldo do mês"
+          valor={formatarMoeda(resumo.saldo_mes)}
+          icone={Wallet}
+          corIcone="text-brand-700"
+          corFundo="bg-brand-100"
+          onClick={() => irParaRelatorios({})}
+        />
+        <KpiCard
+          titulo="A pagar (em aberto)"
+          valor={formatarMoeda(resumo.total_a_pagar_aberto)}
+          icone={ArrowUpCircle}
+          corIcone="text-red-600"
+          corFundo="bg-red-100"
+          onClick={() => irParaRelatorios({ tipo_operacao: 'entrada' })}
+        />
+        <KpiCard
+          titulo="A receber (em aberto)"
+          valor={formatarMoeda(resumo.total_a_receber_aberto)}
+          icone={ArrowDownCircle}
+          corIcone="text-emerald-600"
+          corFundo="bg-emerald-100"
+          onClick={() => irParaRelatorios({ tipo_operacao: 'saida' })}
+        />
+        <KpiCard
+          titulo="Atrasadas"
+          valor={`${resumo.contas_atrasadas_qtd} · ${formatarMoeda(resumo.contas_atrasadas_total)}`}
+          icone={AlertTriangle}
+          corIcone="text-amber-600"
+          corFundo="bg-amber-100"
+          onClick={() => irParaRelatorios({ status_conta: 'atrasado' })}
+        />
+      </div>
+
+      <div className="mt-6 mb-3">
+        <h3 className="text-sm font-semibold text-slate-700">Contas a pagar / receber — vencimento</h3>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Secao
           titulo="Atrasado"
+          icone={AlertTriangle}
           corClasse="bg-red-100 text-red-800"
           contas={dashboard.atrasado}
           total={dashboard.total_atrasado}
@@ -288,6 +346,7 @@ export function DashboardPage() {
         />
         <Secao
           titulo="Vence hoje"
+          icone={Clock}
           corClasse="bg-amber-100 text-amber-800"
           contas={dashboard.hoje}
           total={dashboard.total_hoje}
@@ -296,6 +355,7 @@ export function DashboardPage() {
         />
         <Secao
           titulo="Vence na semana"
+          icone={CalendarClock}
           corClasse="bg-blue-100 text-blue-800"
           contas={dashboard.semana}
           total={dashboard.total_semana}

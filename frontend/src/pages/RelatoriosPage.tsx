@@ -1,5 +1,6 @@
 import { Download, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { FORMA_PAGAMENTO_LABEL } from '../lib/formaPagamento'
 import type { CentroCusto, ContaFinanceira, FormaPagamento, Parceiro, StatusConta, TipoOperacaoNota } from '../types'
@@ -77,6 +78,7 @@ function paramsDeFiltros(filtros: Filtros): Record<string, string> {
 }
 
 export function RelatoriosPage() {
+  const [searchParams] = useSearchParams()
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS)
   const [mesReferencia, setMesReferencia] = useState('')
   const [contas, setContas] = useState<ContaFinanceira[]>([])
@@ -96,6 +98,36 @@ export function RelatoriosPage() {
       setNomesParceiros(Object.fromEntries(parceirosRes.data.map((p) => [p.id, p.razao_social])))
     })
 
+    // Chegando de um clique num gráfico dos Indicadores (ex: barra de um
+    // centro de custo, dia do mês etc.) — os filtros já vêm prontos na URL,
+    // então não sobrescreve com o preset de mês atual.
+    const mesParam = searchParams.get('mes')
+    const temFiltrosNaUrl =
+      mesParam ||
+      searchParams.get('data_inicio') ||
+      searchParams.get('data_fim') ||
+      searchParams.get('tipo_operacao') ||
+      searchParams.get('status_conta') ||
+      searchParams.get('centro_custo_id') ||
+      searchParams.get('parceiro_id')
+
+    if (temFiltrosNaUrl) {
+      const { inicio, fim } = mesParam ? limitesDoMes(mesParam) : { inicio: '', fim: '' }
+      const filtrosIniciais: Filtros = {
+        ...FILTROS_VAZIOS,
+        tipoOperacao: (searchParams.get('tipo_operacao') as Filtros['tipoOperacao']) ?? '',
+        statusConta: (searchParams.get('status_conta') as Filtros['statusConta']) ?? '',
+        centroCustoId: searchParams.get('centro_custo_id') ?? '',
+        parceiroId: searchParams.get('parceiro_id') ?? '',
+        dataInicio: searchParams.get('data_inicio') ?? inicio,
+        dataFim: searchParams.get('data_fim') ?? fim,
+      }
+      setMesReferencia(mesParam ?? '')
+      setFiltros(filtrosIniciais)
+      buscar(filtrosIniciais)
+      return
+    }
+
     // Preset: mês corrente inteiro, com base na data do SERVIDOR (não no
     // relógio do navegador, que pode estar em outro fuso).
     api.get<{ data: string }>('/sistema/data-atual').then(({ data }) => {
@@ -111,9 +143,12 @@ export function RelatoriosPage() {
 
   async function buscar(f: Filtros) {
     setCarregando(true)
-    const { data } = await api.get<ContaFinanceira[]>('/contas-financeiras', { params: paramsDeFiltros(f) })
-    setContas(data)
-    setCarregando(false)
+    try {
+      const { data } = await api.get<ContaFinanceira[]>('/contas-financeiras', { params: paramsDeFiltros(f) })
+      setContas(data)
+    } finally {
+      setCarregando(false)
+    }
   }
 
   function mudarMesReferencia(mes: string) {
