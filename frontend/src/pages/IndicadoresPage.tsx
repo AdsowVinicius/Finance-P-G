@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Percent, Wallet } from 'lucide-react'
+import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Info, Percent, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -23,6 +23,7 @@ import type {
   ItemStatusNota,
   PontoEvolucaoMensal,
   ResumoIndicadores,
+  SaudeFinanceira,
 } from '../types'
 
 const CORES_STATUS: Record<string, string> = {
@@ -126,6 +127,56 @@ function agruparGastosPrevistos(
   return ORDEM_SEMANA.map((idx) => ({ rotulo: DIAS_SEMANA_LABEL[idx], valor: totais[idx], dataInicio: null, dataFim: null }))
 }
 
+type Situacao = 'bom' | 'atencao' | 'ruim' | 'neutro'
+
+const SITUACAO_COR: Record<Situacao, string> = {
+  bom: 'bg-emerald-100 text-emerald-800',
+  atencao: 'bg-amber-100 text-amber-800',
+  ruim: 'bg-red-100 text-red-800',
+  neutro: 'bg-slate-100 text-slate-600',
+}
+
+const SITUACAO_LABEL: Record<Situacao, string> = {
+  bom: 'Dentro do benchmark',
+  atencao: 'Atenção',
+  ruim: 'Fora do benchmark',
+  neutro: 'Informativo',
+}
+
+interface BenchmarkCardProps {
+  titulo: string
+  valor: string
+  situacao: Situacao
+  referencia: string
+}
+
+function BenchmarkCard({ titulo, valor, situacao, referencia }: BenchmarkCardProps) {
+  return (
+    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</p>
+      <p className="mt-1 text-2xl font-semibold text-slate-800">{valor}</p>
+      <div className="mt-2 flex items-start gap-1.5">
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${SITUACAO_COR[situacao]}`}>
+          {SITUACAO_LABEL[situacao]}
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-snug text-slate-400">{referencia}</p>
+    </div>
+  )
+}
+
+function classificarMargem(pct: number): Situacao {
+  if (pct < 0) return 'ruim'
+  if (pct < 5) return 'atencao'
+  return 'bom'
+}
+
+function classificarDso(dias: number): Situacao {
+  if (dias <= 35) return 'bom'
+  if (dias <= 70) return 'atencao'
+  return 'ruim'
+}
+
 export function IndicadoresPage() {
   const navigate = useNavigate()
 
@@ -137,17 +188,20 @@ export function IndicadoresPage() {
   const [notasPorStatus, setNotasPorStatus] = useState<ItemStatusNota[]>([])
   const [gastosPrevistos, setGastosPrevistos] = useState<ItemGastoPrevistoDia[]>([])
   const [granularidade, setGranularidade] = useState<Granularidade>('dia')
+  const [saude, setSaude] = useState<SaudeFinanceira | null>(null)
   const [carregando, setCarregando] = useState(true)
 
   useEffect(() => {
     async function carregar() {
-      const [evolucaoRes, notasRes, dataAtualRes] = await Promise.all([
+      const [evolucaoRes, notasRes, saudeRes, dataAtualRes] = await Promise.all([
         api.get<PontoEvolucaoMensal[]>('/indicadores/evolucao-mensal', { params: { meses: 6 } }),
         api.get<ItemStatusNota[]>('/indicadores/notas-por-status'),
+        api.get<SaudeFinanceira>('/indicadores/saude-financeira'),
         api.get<{ data: string }>('/sistema/data-atual'),
       ])
       setEvolucao(evolucaoRes.data)
       setNotasPorStatus(notasRes.data)
+      setSaude(saudeRes.data)
 
       const mesAtual = dataAtualRes.data.data.slice(0, 7)
       setMesReferencia(mesAtual)
@@ -270,6 +324,55 @@ export function IndicadoresPage() {
           onClick={() => irParaRelatorios({ mes: mesReferencia, status_conta: 'pago' })}
         />
       </div>
+
+      {saude && (
+        <div className="mt-6">
+          <div className="mb-3 flex items-start gap-2">
+            <h3 className="text-sm font-semibold text-slate-700">Saúde financeira x benchmark do setor</h3>
+            <span className="group relative">
+              <Info size={14} className="mt-0.5 text-slate-400" />
+              <span className="pointer-events-none absolute left-0 top-5 z-10 hidden w-72 rounded-lg bg-slate-800 p-2.5 text-xs text-slate-100 shadow-lg group-hover:block">
+                Portfólio inteiro (não é só o mês selecionado). Benchmarks de margem líquida e DSO vêm de pesquisas do
+                setor de construção civil (CFMA Construction Financial Benchmarker 2024; JMCO Performance Benchmarks
+                2025) — referência do mercado americano, na falta de um benchmark público consolidado pro setor no
+                Brasil.
+              </span>
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <BenchmarkCard
+              titulo="Margem líquida"
+              valor={`${Number(saude.margem_liquida_pct).toLocaleString('pt-BR')}%`}
+              situacao={classificarMargem(Number(saude.margem_liquida_pct))}
+              referencia="Benchmark (construtoras bem geridas): 5–8%"
+            />
+            <BenchmarkCard
+              titulo="Prazo médio de recebimento"
+              valor={`${Number(saude.dso_dias).toLocaleString('pt-BR')} dias`}
+              situacao={classificarDso(Number(saude.dso_dias))}
+              referencia="Benchmark: até 35 dias é saudável"
+            />
+            <BenchmarkCard
+              titulo="Prazo médio de pagamento"
+              valor={`${Number(saude.dpo_dias).toLocaleString('pt-BR')} dias`}
+              situacao="neutro"
+              referencia="Quanto maior, mais a empresa usa fornecedor como crédito"
+            />
+            <BenchmarkCard
+              titulo="Inadimplência (em aberto)"
+              valor={`${Number(saude.indice_inadimplencia_pct).toLocaleString('pt-BR')}%`}
+              situacao="neutro"
+              referencia="Do que está em aberto hoje, quanto já venceu"
+            />
+            <BenchmarkCard
+              titulo="Ticket médio"
+              valor={`${formatarMoedaCompacta(Number(saude.ticket_medio_receita))} recebido`}
+              situacao="neutro"
+              referencia={`vs. ${formatarMoedaCompacta(Number(saude.ticket_medio_despesa))} por despesa — receita bem mais concentrada`}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70 lg:col-span-2">

@@ -198,6 +198,15 @@ export interface ItemLucroCentroCusto {
   receita: string
 }
 
+export interface SaudeFinanceira {
+  margem_liquida_pct: string
+  dso_dias: string
+  dpo_dias: string
+  indice_inadimplencia_pct: string
+  ticket_medio_despesa: string
+  ticket_medio_receita: string
+}
+
 export interface ResumoCentroCusto {
   despesas_realizadas: string
   receitas_realizadas: string

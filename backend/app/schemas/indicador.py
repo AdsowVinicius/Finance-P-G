@@ -41,3 +41,12 @@ class ItemLucroCentroCusto(BaseModel):
     centro_custo: str
     despesa: Decimal
     receita: Decimal
+
+
+class SaudeFinanceira(BaseModel):
+    margem_liquida_pct: Decimal
+    dso_dias: Decimal
+    dpo_dias: Decimal
+    indice_inadimplencia_pct: Decimal
+    ticket_medio_despesa: Decimal
+    ticket_medio_receita: Decimal

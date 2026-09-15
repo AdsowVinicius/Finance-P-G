@@ -13,6 +13,7 @@ from app.schemas.indicador import (
     ItemStatusNota,
     PontoEvolucaoMensal,
     ResumoIndicadores,
+    SaudeFinanceira,
 )
 from app.services import indicadores_service
 
@@ -50,6 +51,11 @@ def por_centro_custo(
 @router.get("/lucro-por-centro-custo", response_model=list[ItemLucroCentroCusto])
 def lucro_por_centro_custo(mes: str | None = None, db: Session = Depends(get_db)) -> list[dict]:
     return indicadores_service.lucro_por_centro_custo(db, mes_referencia=_mes_referencia(mes))
+
+
+@router.get("/saude-financeira", response_model=SaudeFinanceira)
+def saude_financeira(db: Session = Depends(get_db)) -> dict:
+    return indicadores_service.saude_financeira(db)
 
 
 @router.get("/notas-por-status", response_model=list[ItemStatusNota])

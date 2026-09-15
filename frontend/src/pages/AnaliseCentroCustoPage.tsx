@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowDownCircle, ArrowUpCircle, StickyNote, Trash2, TrendingUp, Wallet } from 'lucide-react'
+import { AlertCircle, ArrowDownCircle, ArrowUpCircle, Percent, StickyNote, Trash2, TrendingUp, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -171,6 +171,9 @@ export function AnaliseCentroCustoPage() {
     Planejado: Number(p.planejado_acumulado),
     Realizado: Number(p.realizado_acumulado),
   }))
+  const ultimoPontoCurva = dadosCurva.length > 0 ? dadosCurva[dadosCurva.length - 1] : null
+  const indiceAderencia =
+    ultimoPontoCurva && ultimoPontoCurva.Planejado > 0 ? (ultimoPontoCurva.Realizado / ultimoPontoCurva.Planejado) * 100 : null
 
   return (
     <div>
@@ -241,6 +244,34 @@ export function AnaliseCentroCustoPage() {
                   corIcone="text-sky-600"
                   corFundo="bg-sky-100"
                   onClick={() => irParaRelatorios({ tipo_operacao: 'saida', status_conta: 'pendente' })}
+                />
+                <KpiCard
+                  titulo="Índice de aderência ao orçamento"
+                  valor={indiceAderencia === null ? '—' : `${indiceAderencia.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`}
+                  icone={Percent}
+                  corIcone={
+                    indiceAderencia === null
+                      ? 'text-slate-400'
+                      : indiceAderencia > 110
+                        ? 'text-red-600'
+                        : indiceAderencia < 80
+                          ? 'text-amber-600'
+                          : 'text-emerald-600'
+                  }
+                  corFundo={
+                    indiceAderencia === null
+                      ? 'bg-slate-100'
+                      : indiceAderencia > 110
+                        ? 'bg-red-100'
+                        : indiceAderencia < 80
+                          ? 'bg-amber-100'
+                          : 'bg-emerald-100'
+                  }
+                  extra={
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {indiceAderencia === null ? 'sem orçamento cadastrado' : 'realizado ÷ planejado acumulado'}
+                    </p>
+                  }
                 />
               </div>
 

@@ -198,6 +198,71 @@ def lucro_por_centro_custo(db: Session, mes_referencia: date | None = None) -> l
     return resultado
 
 
+def saude_financeira(db: Session) -> dict[str, Any]:
+    """Indicadores financeiros "clássicos" de gestão de obra/construtora,
+    pensados pra comparar com benchmark de mercado (não são recorte de mês —
+    são visão de portfólio inteiro, igual contas_atrasadas/em_aberto).
+
+    - margem_liquida_pct: (receita paga - despesa paga) / receita paga.
+      Benchmark de mercado pra construtoras bem geridas: 5–8% (CFMA 2024).
+    - dso_dias / dpo_dias: prazo médio real entre vencimento e pagamento
+      (positivo = pagou depois do vencimento, negativo = pagou antes).
+      DSO de construtora considerado saudável: < 35 dias.
+    - indice_inadimplencia_pct: do que está em aberto hoje, quanto já venceu.
+    - ticket_medio_despesa / ticket_medio_receita: valor médio por lançamento
+      — mede o quão concentrada é a receita vs. pulverizada a despesa.
+    """
+
+    def soma_paga(tipo: TipoOperacaoNota) -> Decimal:
+        total = (
+            db.query(func.coalesce(func.sum(ContaFinanceira.valor_pago), 0))
+            .filter(ContaFinanceira.tipo_operacao == tipo, ContaFinanceira.status == StatusConta.pago)
+            .scalar()
+        )
+        return Decimal(total)
+
+    despesa_paga = soma_paga(TipoOperacaoNota.entrada)
+    receita_paga = soma_paga(TipoOperacaoNota.saida)
+    margem_liquida_pct = ((receita_paga - despesa_paga) / receita_paga * 100) if receita_paga else Decimal("0")
+
+    def prazo_medio(tipo: TipoOperacaoNota) -> Decimal:
+        media = (
+            db.query(func.avg(ContaFinanceira.data_pagamento - ContaFinanceira.data_vencimento))
+            .filter(ContaFinanceira.tipo_operacao == tipo, ContaFinanceira.status == StatusConta.pago)
+            .scalar()
+        )
+        return Decimal(str(round(float(media), 1))) if media is not None else Decimal("0")
+
+    dpo_dias = prazo_medio(TipoOperacaoNota.entrada)
+    dso_dias = prazo_medio(TipoOperacaoNota.saida)
+
+    valor_atrasado = Decimal(
+        db.query(func.coalesce(func.sum(ContaFinanceira.valor), 0))
+        .filter(ContaFinanceira.status == StatusConta.atrasado)
+        .scalar()
+    )
+    valor_pendente = Decimal(
+        db.query(func.coalesce(func.sum(ContaFinanceira.valor), 0))
+        .filter(ContaFinanceira.status == StatusConta.pendente)
+        .scalar()
+    )
+    total_aberto = valor_atrasado + valor_pendente
+    indice_inadimplencia_pct = (valor_atrasado / total_aberto * 100) if total_aberto else Decimal("0")
+
+    def ticket_medio(tipo: TipoOperacaoNota) -> Decimal:
+        media = db.query(func.avg(ContaFinanceira.valor)).filter(ContaFinanceira.tipo_operacao == tipo).scalar()
+        return Decimal(media).quantize(Decimal("0.01")) if media is not None else Decimal("0")
+
+    return {
+        "margem_liquida_pct": margem_liquida_pct.quantize(Decimal("0.1")),
+        "dso_dias": dso_dias,
+        "dpo_dias": dpo_dias,
+        "indice_inadimplencia_pct": indice_inadimplencia_pct.quantize(Decimal("0.1")),
+        "ticket_medio_despesa": ticket_medio(TipoOperacaoNota.entrada),
+        "ticket_medio_receita": ticket_medio(TipoOperacaoNota.saida),
+    }
+
+
 def notas_por_status(db: Session) -> list[dict[str, Any]]:
     linhas = (
         db.query(NotaFiscal.status, func.count())
