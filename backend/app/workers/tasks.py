@@ -25,6 +25,7 @@ from app.models.extrato_importado import ExtratoImportado
 from app.models.lancamento_extrato import LancamentoExtrato
 from app.models.nota_fiscal import NotaFiscal
 from app.models.parceiro import Parceiro
+from app.services import whatsapp_client, whatsapp_service
 from app.services.conciliacao_matcher import ConciliacaoMatcher, LancamentoParaConciliar
 from app.services.extrato_parser_service import ExtratoParserService
 from app.services.nfe_consulta_client import NfeConsultaClient, NfeConsultaError
@@ -200,3 +201,15 @@ def processar_importacao_extrato(extrato_importado_id: str, tolerancia_dias: int
         db.commit()
     finally:
         db.close()
+
+
+@celery_app.task(name="processar_mensagem_whatsapp")
+def processar_mensagem_whatsapp(telefone: str, texto: str) -> None:
+    db = SessionLocal()
+    try:
+        resposta = whatsapp_service.processar_mensagem(telefone, texto, db)
+    except whatsapp_service.WhatsappIndisponivelError:
+        resposta = "Assistente indisponível no momento — tente novamente mais tarde."
+    finally:
+        db.close()
+    whatsapp_client.enviar_mensagem_texto(telefone, resposta)

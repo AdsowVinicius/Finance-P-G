@@ -22,3 +22,4 @@ class UsuarioRead(BaseModel):
     email: EmailStr
     papel: PapelUsuario
     ativo: bool
+    telefone_whatsapp: str | None = None

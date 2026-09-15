@@ -20,5 +20,6 @@ class Usuario(Base):
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     papel: Mapped[PapelUsuario] = mapped_column(papel_usuario_pg, nullable=False, default=PapelUsuario.sub)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    telefone_whatsapp: Mapped[str | None] = mapped_column(String(20), unique=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

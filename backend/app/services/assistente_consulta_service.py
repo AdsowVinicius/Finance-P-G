@@ -291,6 +291,11 @@ _FUNCOES = {
     "consultar_notas_por_status": consultar_notas_por_status,
 }
 
+# Reaproveitados pelo canal WhatsApp (mesmo motor de consulta, só entra um
+# canal de entrada diferente + uma função de escrita — ver whatsapp_service).
+FERRAMENTAS_LEITURA = _FERRAMENTAS
+FUNCOES_LEITURA = _FUNCOES
+
 
 class AssistenteIndisponivelError(Exception):
     """ANTHROPIC_API_KEY não configurada."""

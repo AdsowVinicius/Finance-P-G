@@ -7,6 +7,7 @@ from app.models.lancamento_extrato import LancamentoExtrato
 from app.models.lancamento_recorrente import LancamentoRecorrente
 from app.models.nota_fiscal import NotaFiscal
 from app.models.parceiro import Parceiro
+from app.models.pre_lancamento_whatsapp import PreLancamentoWhatsapp
 from app.models.projeto import Projeto
 from app.models.usuario import Usuario
 
@@ -20,6 +21,7 @@ __all__ = [
     "LancamentoRecorrente",
     "NotaFiscal",
     "Parceiro",
+    "PreLancamentoWhatsapp",
     "Projeto",
     "Usuario",
 ]

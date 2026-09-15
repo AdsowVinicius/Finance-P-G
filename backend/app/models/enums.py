@@ -99,3 +99,9 @@ class StatusProjeto(str, enum.Enum):
 class StatusFuncionario(str, enum.Enum):
     ativo = "ativo"
     demitido = "demitido"
+
+
+class StatusPreLancamentoWhatsapp(str, enum.Enum):
+    pendente_revisao = "pendente_revisao"
+    confirmado = "confirmado"
+    descartado = "descartado"

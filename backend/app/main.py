@@ -12,9 +12,12 @@ from app.routers import (
     contas_bancarias,
     contas_financeiras,
     extratos,
+    indicadores,
     lancamentos_recorrentes,
     notas_fiscais,
     parceiros,
+    pre_lancamentos_whatsapp,
+    whatsapp_webhook,
 )
 
 app = FastAPI(title="Finance P&G", version="0.1.0")
@@ -36,6 +39,9 @@ app.include_router(contas_financeiras.router)
 app.include_router(notas_fiscais.router)
 app.include_router(extratos.router)
 app.include_router(assistente.router)
+app.include_router(indicadores.router)
+app.include_router(pre_lancamentos_whatsapp.router)
+app.include_router(whatsapp_webhook.router)
 
 Path(settings.storage_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/storage", StaticFiles(directory=settings.storage_dir), name="storage")

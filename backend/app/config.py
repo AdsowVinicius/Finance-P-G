@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-haiku-4-5"
 
+    # WhatsApp (roadmap) — Meta Cloud API oficial. Reaproveita o motor do
+    # RF16 (mesma chave ANTHROPIC_API_KEY acima) + funções de escrita.
+    # Sem whatsapp_access_token/phone_number_id, o envio de resposta é pulado.
+    whatsapp_access_token: str | None = None
+    whatsapp_phone_number_id: str | None = None
+    whatsapp_verify_token: str | None = None
+    whatsapp_app_secret: str | None = None
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

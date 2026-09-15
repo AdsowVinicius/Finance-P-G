@@ -1,10 +1,12 @@
 import {
   ArrowLeftRight,
+  BarChart3,
   Bot,
   Building2,
   FileText,
   LayoutDashboard,
   LogOut,
+  MessageCircle,
   Repeat,
   Tag,
   Users,
@@ -15,7 +17,9 @@ import { useAuth } from '../contexts/AuthContext'
 
 const links = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/indicadores', label: 'Indicadores', icon: BarChart3 },
   { to: '/assistente', label: 'Assistente', icon: Bot },
+  { to: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { to: '/notas-fiscais', label: 'Notas Fiscais', icon: FileText },
   { to: '/extratos', label: 'Extrato / Conciliação', icon: ArrowLeftRight },
   { to: '/lancamentos-recorrentes', label: 'Recorrências', icon: Repeat },

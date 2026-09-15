@@ -6,6 +6,7 @@ export interface Usuario {
   email: string
   papel: PapelUsuario
   ativo: boolean
+  telefone_whatsapp: string | null
 }
 
 export type TipoParceiro = 'fornecedor' | 'cliente' | 'ambos'
@@ -124,6 +125,48 @@ export interface LancamentoExtrato {
   tipo: TipoLancamentoExtrato
   fitid: string | null
   status_conciliacao: StatusConciliacaoLinha
+}
+
+export type StatusPreLancamentoWhatsapp = 'pendente_revisao' | 'confirmado' | 'descartado'
+
+export interface PreLancamentoWhatsapp {
+  id: string
+  telefone: string
+  usuario_id: string | null
+  mensagem_original: string
+  tipo_operacao: TipoOperacaoNota
+  valor: string | null
+  descricao: string | null
+  fornecedor_texto: string | null
+  parceiro_id: string | null
+  centro_custo_id: string | null
+  conta_financeira_id: string | null
+  status: StatusPreLancamentoWhatsapp
+  created_at: string
+}
+
+export interface ResumoIndicadores {
+  saldo_mes: string
+  total_a_pagar_aberto: string
+  total_a_receber_aberto: string
+  contas_atrasadas_qtd: number
+  contas_atrasadas_total: string
+}
+
+export interface PontoEvolucaoMensal {
+  mes: string
+  total_pago: string
+  total_recebido: string
+}
+
+export interface ItemCentroCusto {
+  centro_custo: string
+  total: string
+}
+
+export interface ItemStatusNota {
+  status: StatusNota
+  quantidade: number
 }
 
 export interface NotaFiscal {

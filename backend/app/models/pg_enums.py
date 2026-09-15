@@ -16,6 +16,7 @@ from app.models.enums import (
     StatusFuncionario,
     StatusImportacao,
     StatusNota,
+    StatusPreLancamentoWhatsapp,
     StatusProcessamentoNota,
     StatusProjeto,
     TipoLancamentoExtrato,
@@ -46,3 +47,4 @@ status_conciliacao_linha_pg = _pg_enum(StatusConciliacaoLinha, "status_conciliac
 tipo_match_pg = _pg_enum(TipoMatch, "tipo_match")
 status_projeto_pg = _pg_enum(StatusProjeto, "status_projeto")
 status_funcionario_pg = _pg_enum(StatusFuncionario, "status_funcionario")
+status_pre_lancamento_whatsapp_pg = _pg_enum(StatusPreLancamentoWhatsapp, "status_pre_lancamento_whatsapp")
