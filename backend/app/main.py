@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import (
+    analise_centro_custo,
     assistente,
     auditoria,
     auth,
@@ -40,6 +41,7 @@ app.include_router(usuarios.router)
 app.include_router(parceiros.router)
 app.include_router(centros_custo.router)
 app.include_router(categorias_lancamento.router)
+app.include_router(analise_centro_custo.router)
 app.include_router(contas_bancarias.router)
 app.include_router(lancamentos_recorrentes.router)
 app.include_router(contas_financeiras.router)

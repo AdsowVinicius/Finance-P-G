@@ -16,7 +16,14 @@ import {
 } from 'recharts'
 import { KpiCard } from '../components/KpiCard'
 import { api } from '../lib/api'
-import type { ItemCentroCusto, ItemGastoPrevistoDia, ItemStatusNota, PontoEvolucaoMensal, ResumoIndicadores } from '../types'
+import type {
+  ItemCentroCusto,
+  ItemGastoPrevistoDia,
+  ItemLucroCentroCusto,
+  ItemStatusNota,
+  PontoEvolucaoMensal,
+  ResumoIndicadores,
+} from '../types'
 
 const CORES_STATUS: Record<string, string> = {
   pendente: '#94a3b8',
@@ -126,6 +133,7 @@ export function IndicadoresPage() {
   const [resumo, setResumo] = useState<ResumoIndicadores | null>(null)
   const [evolucao, setEvolucao] = useState<PontoEvolucaoMensal[]>([])
   const [porCentroCusto, setPorCentroCusto] = useState<ItemCentroCusto[]>([])
+  const [lucroPorCentro, setLucroPorCentro] = useState<ItemLucroCentroCusto[]>([])
   const [notasPorStatus, setNotasPorStatus] = useState<ItemStatusNota[]>([])
   const [gastosPrevistos, setGastosPrevistos] = useState<ItemGastoPrevistoDia[]>([])
   const [granularidade, setGranularidade] = useState<Granularidade>('dia')
@@ -151,13 +159,15 @@ export function IndicadoresPage() {
   }, [])
 
   async function carregarDoMes(mes: string) {
-    const [resumoRes, centroCustoRes, gastosRes] = await Promise.all([
+    const [resumoRes, centroCustoRes, lucroRes, gastosRes] = await Promise.all([
       api.get<ResumoIndicadores>('/indicadores/resumo', { params: { mes } }),
       api.get<ItemCentroCusto[]>('/indicadores/por-centro-custo', { params: { mes } }),
+      api.get<ItemLucroCentroCusto[]>('/indicadores/lucro-por-centro-custo', { params: { mes } }),
       api.get<ItemGastoPrevistoDia[]>('/indicadores/gastos-previstos-por-dia', { params: { mes } }),
     ])
     setResumo(resumoRes.data)
     setPorCentroCusto(centroCustoRes.data)
+    setLucroPorCentro(lucroRes.data)
     setGastosPrevistos(gastosRes.data)
   }
 
@@ -183,11 +193,19 @@ export function IndicadoresPage() {
   }))
 
   const dadosCentroCusto = porCentroCusto.map((c) => ({ nome: c.centro_custo, valor: Number(c.total), id: c.centro_custo_id }))
+  const dadosLucro = lucroPorCentro.map((c) => ({
+    nome: c.centro_custo,
+    id: c.centro_custo_id,
+    Despesa: Number(c.despesa),
+    Receita: Number(c.receita),
+    lucro: Number(c.receita) - Number(c.despesa),
+  }))
   const dadosGastosPrevistos = agruparGastosPrevistos(mesReferencia, gastosPrevistos, granularidade)
   const dadosStatus = notasPorStatus.map((s) => ({
     nome: STATUS_LABEL[s.status] ?? s.status,
     valor: s.quantidade,
     cor: CORES_STATUS[s.status] ?? '#94a3b8',
+    statusRaw: s.status,
   }))
 
   return (
@@ -293,7 +311,16 @@ export function IndicadoresPage() {
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={dadosStatus} dataKey="valor" nameKey="nome" innerRadius={55} outerRadius={90} paddingAngle={2}>
+                <Pie
+                  data={dadosStatus}
+                  dataKey="valor"
+                  nameKey="nome"
+                  innerRadius={55}
+                  outerRadius={90}
+                  paddingAngle={2}
+                  cursor="pointer"
+                  onClick={(_, i) => navigate(`/notas-fiscais?${new URLSearchParams({ status: dadosStatus[i].statusRaw }).toString()}`)}
+                >
                   {dadosStatus.map((entrada, i) => (
                     <Cell key={i} fill={entrada.cor} />
                   ))}
@@ -333,6 +360,49 @@ export function IndicadoresPage() {
                   <Cell key={i} fill={CORES_CENTRO_CUSTO[i % CORES_CENTRO_CUSTO.length]} />
                 ))}
               </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+        <h3 className="mb-4 text-sm font-semibold text-slate-700">Lucro por centro de custo — despesa vs. receita do mês</h3>
+        {dadosLucro.length === 0 ? (
+          <p className="py-10 text-center text-sm text-slate-400">Sem lançamentos esse mês.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(dadosLucro.length * 60, 140)}>
+            <BarChart data={dadosLucro} layout="vertical" margin={{ left: 24 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 12, fill: '#64748b' }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => formatarMoedaCompacta(v)}
+              />
+              <YAxis dataKey="nome" type="category" width={160} tick={{ fontSize: 12, fill: '#334155' }} axisLine={false} tickLine={false} />
+              <Tooltip
+                formatter={(v: number) => formatarMoeda(String(v))}
+                labelFormatter={(nome) => {
+                  const item = dadosLucro.find((d) => d.nome === nome)
+                  return item ? `${nome} — lucro: ${formatarMoeda(String(item.lucro))}` : nome
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar
+                dataKey="Despesa"
+                fill="#dc2626"
+                radius={[0, 4, 4, 0]}
+                cursor="pointer"
+                onClick={(_, i) => irParaRelatorios({ centro_custo_id: dadosLucro[i].id, mes: mesReferencia, tipo_operacao: 'entrada' })}
+              />
+              <Bar
+                dataKey="Receita"
+                fill="#10b981"
+                radius={[0, 4, 4, 0]}
+                cursor="pointer"
+                onClick={(_, i) => irParaRelatorios({ centro_custo_id: dadosLucro[i].id, mes: mesReferencia, tipo_operacao: 'saida' })}
+              />
             </BarChart>
           </ResponsiveContainer>
         )}

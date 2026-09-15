@@ -9,6 +9,7 @@ from app.models.enums import TipoOperacaoNota
 from app.schemas.indicador import (
     ItemCentroCusto,
     ItemGastoPrevistoDia,
+    ItemLucroCentroCusto,
     ItemStatusNota,
     PontoEvolucaoMensal,
     ResumoIndicadores,
@@ -44,6 +45,11 @@ def por_centro_custo(
     tipo_operacao: TipoOperacaoNota = TipoOperacaoNota.entrada, mes: str | None = None, db: Session = Depends(get_db)
 ) -> list[dict]:
     return indicadores_service.por_centro_custo(db, tipo_operacao=tipo_operacao, mes_referencia=_mes_referencia(mes))
+
+
+@router.get("/lucro-por-centro-custo", response_model=list[ItemLucroCentroCusto])
+def lucro_por_centro_custo(mes: str | None = None, db: Session = Depends(get_db)) -> list[dict]:
+    return indicadores_service.lucro_por_centro_custo(db, mes_referencia=_mes_referencia(mes))
 
 
 @router.get("/notas-por-status", response_model=list[ItemStatusNota])

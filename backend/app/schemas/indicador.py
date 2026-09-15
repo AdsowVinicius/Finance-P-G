@@ -34,3 +34,10 @@ class ItemStatusNota(BaseModel):
 class ItemGastoPrevistoDia(BaseModel):
     data: date
     total: Decimal
+
+
+class ItemLucroCentroCusto(BaseModel):
+    centro_custo_id: uuid.UUID
+    centro_custo: str
+    despesa: Decimal
+    receita: Decimal

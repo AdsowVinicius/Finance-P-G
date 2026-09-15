@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_write_access
 from app.core.storage import salvar_arquivo_upload
 from app.database import get_db
-from app.models.enums import StatusProcessamentoNota, TipoNota, TipoOperacaoNota
+from app.models.enums import StatusNota, StatusProcessamentoNota, TipoNota, TipoOperacaoNota
 from app.models.nota_fiscal import NotaFiscal
 from app.models.usuario import Usuario
 from app.schemas.nota_fiscal import ChaveAcessoManual, NotaFiscalRead
@@ -25,6 +25,7 @@ def listar_notas_fiscais(
     parceiro_id: uuid.UUID | None = None,
     centro_custo_id: uuid.UUID | None = None,
     status_processamento: StatusProcessamentoNota | None = None,
+    status: StatusNota | None = None,
     data_emissao_de: date | None = None,
     data_emissao_ate: date | None = None,
     db: Session = Depends(get_db),
@@ -36,6 +37,8 @@ def listar_notas_fiscais(
         query = query.filter(NotaFiscal.centro_custo_id == centro_custo_id)
     if status_processamento is not None:
         query = query.filter(NotaFiscal.status_processamento == status_processamento)
+    if status is not None:
+        query = query.filter(NotaFiscal.status == status)
     if data_emissao_de is not None:
         query = query.filter(NotaFiscal.data_emissao >= data_emissao_de)
     if data_emissao_ate is not None:

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
+import { AnaliseCentroCustoPage } from './pages/AnaliseCentroCustoPage'
 import { AssistentePage } from './pages/AssistentePage'
 import { AuditoriaPage } from './pages/AuditoriaPage'
 import { CentrosCustoPage } from './pages/CentrosCustoPage'
@@ -32,6 +33,7 @@ function App() {
       >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/indicadores" element={<IndicadoresPage />} />
+        <Route path="/analise-centro-custo" element={<AnaliseCentroCustoPage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
         <Route path="/assistente" element={<AssistentePage />} />
         <Route path="/whatsapp" element={<PreLancamentosWhatsappPage />} />

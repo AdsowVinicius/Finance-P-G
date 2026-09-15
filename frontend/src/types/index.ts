@@ -191,6 +191,46 @@ export interface ItemGastoPrevistoDia {
   total: string
 }
 
+export interface ItemLucroCentroCusto {
+  centro_custo_id: string
+  centro_custo: string
+  despesa: string
+  receita: string
+}
+
+export interface ResumoCentroCusto {
+  despesas_realizadas: string
+  receitas_realizadas: string
+  saldo_realizado: string
+  despesas_futuras: string
+  receitas_futuras: string
+}
+
+export interface PontoCurvaS {
+  mes: string
+  planejado_mes: string
+  realizado_mes: string
+  planejado_acumulado: string
+  realizado_acumulado: string
+}
+
+export interface OrcamentoCentroCusto {
+  id: string
+  centro_custo_id: string
+  mes_referencia: string
+  valor_planejado: string
+  updated_at: string
+}
+
+export interface NotaCentroCusto {
+  id: string
+  centro_custo_id: string
+  usuario_id: string
+  usuario_nome: string
+  texto: string
+  created_at: string
+}
+
 export interface LogAuditoria {
   id: string
   usuario_id: string

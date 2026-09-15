@@ -1,8 +1,23 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
-import type { CentroCusto, ContaFinanceira, NotaFiscal, Parceiro, TipoNota, TipoOperacaoNota } from '../types'
+import type { CentroCusto, ContaFinanceira, NotaFiscal, Parceiro, StatusNota, TipoNota, TipoOperacaoNota } from '../types'
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:8000'
+
+const CONCILIACAO_LABEL: Record<StatusNota, string> = {
+  pendente: 'Pendente',
+  parcialmente_conciliada: 'Parcialmente conciliada',
+  conciliada: 'Conciliada',
+  cancelada: 'Cancelada',
+}
+
+const CONCILIACAO_COR: Record<StatusNota, string> = {
+  pendente: 'bg-slate-100 text-slate-700',
+  parcialmente_conciliada: 'bg-amber-100 text-amber-800',
+  conciliada: 'bg-emerald-100 text-emerald-800',
+  cancelada: 'bg-red-100 text-red-800',
+}
 
 const statusLabel: Record<NotaFiscal['status_processamento'], string> = {
   aguardando_extracao: 'Aguardando extração',
@@ -205,9 +220,11 @@ function ParcelasDaNota({ notaId }: { notaId: string }) {
 }
 
 export function NotasFiscaisPage() {
+  const [searchParams] = useSearchParams()
   const [notas, setNotas] = useState<NotaFiscal[]>([])
   const [parceiros, setParceiros] = useState<Parceiro[]>([])
   const [centros, setCentros] = useState<CentroCusto[]>([])
+  const [statusFiltro, setStatusFiltro] = useState<StatusNota | ''>((searchParams.get('status') as StatusNota) ?? '')
   const [carregando, setCarregando] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -225,10 +242,10 @@ export function NotasFiscaisPage() {
   const [despesaParcelada, setDespesaParcelada] = useState(false)
   const [numeroParcelas, setNumeroParcelas] = useState('1')
 
-  async function carregar() {
+  async function carregar(status: StatusNota | '' = statusFiltro) {
     setCarregando(true)
     const [notasRes, parcRes, centrosRes] = await Promise.all([
-      api.get<NotaFiscal[]>('/notas-fiscais'),
+      api.get<NotaFiscal[]>('/notas-fiscais', { params: status ? { status } : {} }),
       api.get<Parceiro[]>('/parceiros'),
       api.get<CentroCusto[]>('/centros-custo'),
     ])
@@ -240,7 +257,13 @@ export function NotasFiscaisPage() {
 
   useEffect(() => {
     carregar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function mudarStatusFiltro(status: StatusNota | '') {
+    setStatusFiltro(status)
+    carregar(status)
+  }
 
   function nomeParceiro(id: string): string {
     return parceiros.find((p) => p.id === id)?.razao_social ?? '—'
@@ -290,14 +313,29 @@ export function NotasFiscaisPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-slate-800">Notas Fiscais</h2>
-        <button
-          onClick={() => setMostrarForm((v) => !v)}
-          className="rounded bg-brand-700 px-3 py-1.5 text-sm text-white hover:bg-brand-800"
-        >
-          {mostrarForm ? 'Cancelar' : 'Cadastrar nota fiscal'}
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-slate-600">Conciliação</label>
+          <select
+            value={statusFiltro}
+            onChange={(e) => mudarStatusFiltro(e.target.value as StatusNota | '')}
+            className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+          >
+            <option value="">Todas</option>
+            {(Object.keys(CONCILIACAO_LABEL) as StatusNota[]).map((s) => (
+              <option key={s} value={s}>
+                {CONCILIACAO_LABEL[s]}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setMostrarForm((v) => !v)}
+            className="rounded bg-brand-700 px-3 py-1.5 text-sm text-white hover:bg-brand-800"
+          >
+            {mostrarForm ? 'Cancelar' : 'Cadastrar nota fiscal'}
+          </button>
+        </div>
       </div>
 
       {mostrarForm && (
@@ -449,21 +487,22 @@ export function NotasFiscaisPage() {
               <th className="px-4 py-2">Parcelas</th>
               <th className="px-4 py-2">PDF</th>
               <th className="px-4 py-2">Processamento</th>
+              <th className="px-4 py-2">Conciliação</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody>
             {carregando && (
               <tr>
-                <td className="px-4 py-3 text-slate-400" colSpan={7}>
+                <td className="px-4 py-3 text-slate-400" colSpan={8}>
                   Carregando...
                 </td>
               </tr>
             )}
             {!carregando && notas.length === 0 && (
               <tr>
-                <td className="px-4 py-3 text-slate-400" colSpan={7}>
-                  Nenhuma nota fiscal cadastrada
+                <td className="px-4 py-3 text-slate-400" colSpan={8}>
+                  Nenhuma nota fiscal encontrada com esse filtro
                 </td>
               </tr>
             )}
@@ -501,6 +540,9 @@ export function NotasFiscaisPage() {
                       </div>
                     )}
                   </td>
+                  <td className="px-4 py-2">
+                    <span className={`rounded px-2 py-0.5 text-xs ${CONCILIACAO_COR[n.status]}`}>{CONCILIACAO_LABEL[n.status]}</span>
+                  </td>
                   <td className="px-4 py-2 text-right">
                     <button
                       onClick={() => setExpandida(expandida === n.id ? null : n.id)}
@@ -512,7 +554,7 @@ export function NotasFiscaisPage() {
                 </tr>
                 {expandida === n.id && (
                   <tr>
-                    <td colSpan={7} className="bg-slate-50 p-0">
+                    <td colSpan={8} className="bg-slate-50 p-0">
                       <ParcelasDaNota notaId={n.id} />
                     </td>
                   </tr>

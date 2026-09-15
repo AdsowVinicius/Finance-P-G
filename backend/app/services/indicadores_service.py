@@ -1,6 +1,7 @@
 """Agregações somente-leitura para o dashboard de indicadores (gráficos/KPIs)."""
 
 import calendar
+import uuid
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -165,6 +166,36 @@ def gastos_previstos_por_dia(db: Session, mes_referencia: date) -> list[dict[str
         .all()
     )
     return [{"data": dia, "total": Decimal(total)} for dia, total in linhas]
+
+
+def lucro_por_centro_custo(db: Session, mes_referencia: date | None = None) -> list[dict[str, Any]]:
+    """Despesa e receita do mês lado a lado por centro de custo — todos os
+    centros com algum lançamento no mês, não só os de despesa (diferente de
+    por_centro_custo, que é só um lado). Lucro = receita - despesa, calculado
+    no frontend a partir dos dois valores.
+    """
+    inicio_mes, fim_mes = _limites_mes(mes_referencia or date.today())
+    linhas = (
+        db.query(CentroCusto.id, CentroCusto.nome, ContaFinanceira.tipo_operacao, func.sum(ContaFinanceira.valor))
+        .join(ContaFinanceira, ContaFinanceira.centro_custo_id == CentroCusto.id)
+        .filter(ContaFinanceira.data_vencimento >= inicio_mes, ContaFinanceira.data_vencimento <= fim_mes)
+        .group_by(CentroCusto.id, CentroCusto.nome, ContaFinanceira.tipo_operacao)
+        .all()
+    )
+
+    por_centro: dict[uuid.UUID, dict[str, Any]] = {}
+    for centro_id, nome, tipo, total in linhas:
+        bucket = por_centro.setdefault(
+            centro_id, {"centro_custo_id": centro_id, "centro_custo": nome, "despesa": Decimal("0"), "receita": Decimal("0")}
+        )
+        if tipo == TipoOperacaoNota.entrada:
+            bucket["despesa"] = Decimal(total)
+        else:
+            bucket["receita"] = Decimal(total)
+
+    resultado = list(por_centro.values())
+    resultado.sort(key=lambda r: r["despesa"] + r["receita"], reverse=True)
+    return resultado
 
 
 def notas_por_status(db: Session) -> list[dict[str, Any]]:

@@ -5,6 +5,7 @@ import {
   Building2,
   FileText,
   LayoutDashboard,
+  LineChart,
   LogOut,
   MessageCircle,
   Repeat,
@@ -21,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext'
 const links = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/indicadores', label: 'Indicadores', icon: BarChart3 },
+  { to: '/analise-centro-custo', label: 'Análise por Obra', icon: LineChart },
   { to: '/relatorios', label: 'Relatórios', icon: Search },
   { to: '/assistente', label: 'Assistente', icon: Bot },
   { to: '/whatsapp', label: 'WhatsApp', icon: MessageCircle },
