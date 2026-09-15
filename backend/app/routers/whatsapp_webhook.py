@@ -47,12 +47,16 @@ async def receber_mensagem(request: Request, x_hub_signature_256: str | None = H
     for entrada in payload.get("entry", []):
         for mudanca in entrada.get("changes", []):
             valor = mudanca.get("value", {})
+            # metadata.phone_number_id é o número QUE RECEBEU a mensagem — a
+            # resposta precisa sair pelo mesmo número, nunca por um fixo,
+            # já que o app pode ter mais de um número WhatsApp conectado.
+            phone_number_id = valor.get("metadata", {}).get("phone_number_id")
             for mensagem in valor.get("messages", []):
                 if mensagem.get("type") != "text":
                     logger.info("Ignorando mensagem WhatsApp não-texto: %s", mensagem.get("type"))
                     continue
                 telefone = mensagem["from"]
                 texto = mensagem["text"]["body"]
-                processar_mensagem_whatsapp.delay(telefone, texto)
+                processar_mensagem_whatsapp.delay(telefone, texto, phone_number_id)
 
     return {"status": "ok"}

@@ -204,7 +204,7 @@ def processar_importacao_extrato(extrato_importado_id: str, tolerancia_dias: int
 
 
 @celery_app.task(name="processar_mensagem_whatsapp")
-def processar_mensagem_whatsapp(telefone: str, texto: str) -> None:
+def processar_mensagem_whatsapp(telefone: str, texto: str, phone_number_id: str | None = None) -> None:
     db = SessionLocal()
     try:
         resposta = whatsapp_service.processar_mensagem(telefone, texto, db)
@@ -212,4 +212,4 @@ def processar_mensagem_whatsapp(telefone: str, texto: str) -> None:
         resposta = "Assistente indisponível no momento — tente novamente mais tarde."
     finally:
         db.close()
-    whatsapp_client.enviar_mensagem_texto(telefone, resposta)
+    whatsapp_client.enviar_mensagem_texto(telefone, resposta, phone_number_id)
