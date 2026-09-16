@@ -40,8 +40,22 @@ function App() {
         <Route path="/parceiros" element={<ParceirosPage />} />
         <Route path="/centros-custo" element={<CentrosCustoPage />} />
         <Route path="/contas-bancarias" element={<ContasBancariasPage />} />
-        <Route path="/usuarios" element={<UsuariosPage />} />
-        <Route path="/auditoria" element={<AuditoriaPage />} />
+        <Route
+          path="/usuarios"
+          element={
+            <ProtectedRoute roles={['admin', 'master']}>
+              <UsuariosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/auditoria"
+          element={
+            <ProtectedRoute roles={['admin', 'master']}>
+              <AuditoriaPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/lancamentos-recorrentes" element={<LancamentosRecorrentesPage />} />
         <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
         <Route path="/extratos" element={<ExtratosPage />} />

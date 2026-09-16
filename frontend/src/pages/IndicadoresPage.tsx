@@ -16,6 +16,8 @@ import {
 } from 'recharts'
 import { KpiCard } from '../components/KpiCard'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
+import { formatarMoeda, formatarMoedaCompacta } from '../lib/formatters'
 import type {
   ItemCentroCusto,
   ItemGastoPrevistoDia,
@@ -41,14 +43,6 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const CORES_CENTRO_CUSTO = ['#1e3a5f', '#2563eb', '#0ea5e9', '#14b8a6', '#84cc16', '#f59e0b', '#f97316', '#ef4444']
-
-function formatarMoeda(valor: string): string {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatarMoedaCompacta(valor: number): string {
-  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' })
-}
 
 function formatarMes(mes: string): string {
   const [ano, m] = mes.split('-')
@@ -190,23 +184,29 @@ export function IndicadoresPage() {
   const [granularidade, setGranularidade] = useState<Granularidade>('dia')
   const [saude, setSaude] = useState<SaudeFinanceira | null>(null)
   const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
 
   useEffect(() => {
     async function carregar() {
-      const [evolucaoRes, notasRes, saudeRes, dataAtualRes] = await Promise.all([
-        api.get<PontoEvolucaoMensal[]>('/indicadores/evolucao-mensal', { params: { meses: 6 } }),
-        api.get<ItemStatusNota[]>('/indicadores/notas-por-status'),
-        api.get<SaudeFinanceira>('/indicadores/saude-financeira'),
-        api.get<{ data: string }>('/sistema/data-atual'),
-      ])
-      setEvolucao(evolucaoRes.data)
-      setNotasPorStatus(notasRes.data)
-      setSaude(saudeRes.data)
+      try {
+        const [evolucaoRes, notasRes, saudeRes, dataAtualRes] = await Promise.all([
+          api.get<PontoEvolucaoMensal[]>('/indicadores/evolucao-mensal', { params: { meses: 6 } }),
+          api.get<ItemStatusNota[]>('/indicadores/notas-por-status'),
+          api.get<SaudeFinanceira>('/indicadores/saude-financeira'),
+          api.get<{ data: string }>('/sistema/data-atual'),
+        ])
+        setEvolucao(evolucaoRes.data)
+        setNotasPorStatus(notasRes.data)
+        setSaude(saudeRes.data)
 
-      const mesAtual = dataAtualRes.data.data.slice(0, 7)
-      setMesReferencia(mesAtual)
-      await carregarDoMes(mesAtual)
-      setCarregando(false)
+        const mesAtual = dataAtualRes.data.data.slice(0, 7)
+        setMesReferencia(mesAtual)
+        await carregarDoMes(mesAtual)
+      } catch (err) {
+        setErro(extractApiError(err, 'Não foi possível carregar os indicadores'))
+      } finally {
+        setCarregando(false)
+      }
     }
     carregar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,11 +228,19 @@ export function IndicadoresPage() {
   async function mudarMesReferencia(mes: string) {
     setMesReferencia(mes)
     if (!mes) return
-    await carregarDoMes(mes)
+    try {
+      await carregarDoMes(mes)
+    } catch (err) {
+      setErro(extractApiError(err, 'Não foi possível carregar os indicadores desse mês'))
+    }
   }
 
   function irParaRelatorios(params: Record<string, string>) {
     navigate(`/relatorios?${new URLSearchParams(params).toString()}`)
+  }
+
+  if (erro) {
+    return <p className="text-sm text-red-600">{erro}</p>
   }
 
   if (carregando || !resumo) {
@@ -387,7 +395,7 @@ export function IndicadoresPage() {
                 tickLine={false}
                 tickFormatter={(v) => formatarMoedaCompacta(v)}
               />
-              <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
+              <Tooltip formatter={(v) => formatarMoeda(String(v))} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar
                 dataKey="Recebido"
@@ -452,7 +460,7 @@ export function IndicadoresPage() {
                 tickFormatter={(v) => formatarMoedaCompacta(v)}
               />
               <YAxis dataKey="nome" type="category" width={160} tick={{ fontSize: 12, fill: '#334155' }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
+              <Tooltip formatter={(v) => formatarMoeda(String(v))} />
               <Bar
                 dataKey="valor"
                 radius={[0, 4, 4, 0]}
@@ -485,7 +493,7 @@ export function IndicadoresPage() {
               />
               <YAxis dataKey="nome" type="category" width={160} tick={{ fontSize: 12, fill: '#334155' }} axisLine={false} tickLine={false} />
               <Tooltip
-                formatter={(v: number) => formatarMoeda(String(v))}
+                formatter={(v) => formatarMoeda(String(v))}
                 labelFormatter={(nome) => {
                   const item = dadosLucro.find((d) => d.nome === nome)
                   return item ? `${nome} — lucro: ${formatarMoeda(String(item.lucro))}` : nome
@@ -537,7 +545,7 @@ export function IndicadoresPage() {
                 tickLine={false}
                 tickFormatter={(v) => formatarMoedaCompacta(v)}
               />
-              <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
+              <Tooltip formatter={(v) => formatarMoeda(String(v))} />
               <Bar
                 dataKey="valor"
                 fill="#dc2626"

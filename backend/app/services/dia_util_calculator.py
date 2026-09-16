@@ -32,8 +32,9 @@ class DiaUtilCalculator:
 
         - funcionario: sábado conta como dia útil (só domingo/feriado empurra,
           pro próximo dia útil real via workalendar — sábado nunca empurra).
-        - bancaria: só segunda a sexta; cair no sábado ou domingo empurra pra
-          trás, até a sexta-feira anterior (nunca pra frente).
+        - bancaria: só segunda a sexta e nunca feriado nacional (banco não
+          abre); cair num desses dias empurra pra trás, até o dia útil
+          anterior (nunca pra frente).
         """
         if regra == RegraDiaUtilCategoria.funcionario:
             ajustada = data
@@ -42,7 +43,7 @@ class DiaUtilCalculator:
             return ajustada
         if regra == RegraDiaUtilCategoria.bancaria:
             ajustada = data
-            while ajustada.weekday() >= 5:  # 5=sábado, 6=domingo
+            while not self._calendario.is_working_day(ajustada):
                 ajustada -= timedelta(days=1)
             return ajustada
         return data

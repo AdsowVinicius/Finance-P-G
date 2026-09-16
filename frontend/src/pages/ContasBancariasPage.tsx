@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../lib/api'
+import { formatarMoeda } from '../lib/formatters'
 import type { ContaBancaria } from '../types'
 
 export function ContasBancariasPage() {
@@ -156,7 +157,7 @@ export function ContasBancariasPage() {
                 <td className="px-4 py-2">{c.agencia ?? '—'}</td>
                 <td className="px-4 py-2">{c.numero_conta ?? '—'}</td>
                 <td className="px-4 py-2">
-                  {Number(c.saldo_inicial).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {formatarMoeda(c.saldo_inicial)}
                 </td>
                 <td className="px-4 py-2 text-right">
                   <button onClick={() => desativar(c.id)} className="text-red-600 hover:underline">

@@ -174,3 +174,16 @@ class TestMatchParcial:
 
         assert resultado.tipo_match.value == "automatico_exato"
         assert resultado.contas == [conta_exata]
+
+    def test_duas_combinacoes_parciais_com_soma_exata_e_ambiguo_nao_casa_sozinho(self) -> None:
+        hoje = date(2026, 9, 14)
+        contas = [
+            _conta("100.00", hoje),
+            _conta("400.00", hoje),
+            _conta("150.00", hoje),
+            _conta("350.00", hoje),
+        ]
+
+        resultado = self.matcher.conciliar(_lancamento("500.00", hoje), contas)
+
+        assert resultado.encontrou_match is False

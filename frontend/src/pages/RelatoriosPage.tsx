@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { FORMA_PAGAMENTO_LABEL } from '../lib/formaPagamento'
+import { formatarData, formatarMoeda } from '../lib/formatters'
 import type { CentroCusto, ContaFinanceira, FormaPagamento, Parceiro, StatusConta, TipoOperacaoNota } from '../types'
 
 const STATUS_LABEL: Record<StatusConta, string> = {
@@ -43,15 +44,6 @@ const FILTROS_VAZIOS: Filtros = {
   valorMin: '',
   valorMax: '',
   busca: '',
-}
-
-function formatarMoeda(valor: string): string {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatarData(data: string): string {
-  const [ano, mes, dia] = data.split('-')
-  return `${dia}/${mes}/${ano}`
 }
 
 /** "2026-09" -> {inicio: "2026-09-01", fim: "2026-09-30"} (último dia calculado de verdade, sem chutar 30/31). */

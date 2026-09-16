@@ -23,6 +23,23 @@ def _limites_mes(referencia: date) -> tuple[date, date]:
     return referencia.replace(day=1), date(referencia.year, referencia.month, ultimo_dia)
 
 
+def _soma_paga(
+    db: Session, tipo: TipoOperacaoNota, data_inicio: date | None = None, data_fim: date | None = None
+) -> Decimal:
+    """Soma de valor_pago das contas quitadas de um tipo de operação,
+    opcionalmente escopada a um intervalo de data_pagamento (sem intervalo =
+    portfólio inteiro).
+    """
+    query = db.query(func.coalesce(func.sum(ContaFinanceira.valor_pago), 0)).filter(
+        ContaFinanceira.tipo_operacao == tipo, ContaFinanceira.status == StatusConta.pago
+    )
+    if data_inicio is not None:
+        query = query.filter(ContaFinanceira.data_pagamento >= data_inicio)
+    if data_fim is not None:
+        query = query.filter(ContaFinanceira.data_pagamento <= data_fim)
+    return Decimal(query.scalar())
+
+
 def resumo(db: Session, mes_referencia: date | None = None) -> dict[str, Any]:
     """saldo_mes e juros_pagos_mes são escopados pelo mês de referência (padrão:
     mês atual do servidor). total_a_pagar_aberto/total_a_receber_aberto e
@@ -33,17 +50,7 @@ def resumo(db: Session, mes_referencia: date | None = None) -> dict[str, Any]:
     inicio_mes, fim_mes = _limites_mes(mes_referencia or date.today())
 
     def soma_paga(tipo: TipoOperacaoNota) -> Decimal:
-        total = (
-            db.query(func.coalesce(func.sum(ContaFinanceira.valor_pago), 0))
-            .filter(
-                ContaFinanceira.tipo_operacao == tipo,
-                ContaFinanceira.status == StatusConta.pago,
-                ContaFinanceira.data_pagamento >= inicio_mes,
-                ContaFinanceira.data_pagamento <= fim_mes,
-            )
-            .scalar()
-        )
-        return Decimal(total)
+        return _soma_paga(db, tipo, inicio_mes, fim_mes)
 
     def soma_aberta(tipo: TipoOperacaoNota) -> Decimal:
         total = (
@@ -213,16 +220,8 @@ def saude_financeira(db: Session) -> dict[str, Any]:
       — mede o quão concentrada é a receita vs. pulverizada a despesa.
     """
 
-    def soma_paga(tipo: TipoOperacaoNota) -> Decimal:
-        total = (
-            db.query(func.coalesce(func.sum(ContaFinanceira.valor_pago), 0))
-            .filter(ContaFinanceira.tipo_operacao == tipo, ContaFinanceira.status == StatusConta.pago)
-            .scalar()
-        )
-        return Decimal(total)
-
-    despesa_paga = soma_paga(TipoOperacaoNota.entrada)
-    receita_paga = soma_paga(TipoOperacaoNota.saida)
+    despesa_paga = _soma_paga(db, TipoOperacaoNota.entrada)
+    receita_paga = _soma_paga(db, TipoOperacaoNota.saida)
     margem_liquida_pct = ((receita_paga - despesa_paga) / receita_paga * 100) if receita_paga else Decimal("0")
 
     def prazo_medio(tipo: TipoOperacaoNota) -> Decimal:

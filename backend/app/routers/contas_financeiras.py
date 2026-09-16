@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, require_write_access
@@ -17,7 +16,7 @@ from app.models.conta_financeira import ContaFinanceira
 from app.models.enums import FormaBaixa, FormaPagamento, StatusConta, TipoOperacaoNota
 from app.models.parceiro import Parceiro
 from app.models.usuario import Usuario
-from app.services import auditoria_service
+from app.services import auditoria_service, contas_financeiras_service
 from app.services.dia_util_calculator import DiaUtilCalculator
 from app.services.nota_fiscal_service import atualizar_status_conciliacao
 from app.schemas.conta_financeira import (
@@ -242,22 +241,13 @@ def dashboard_vencimento(
     "/atualizar-atrasados",
     dependencies=[Depends(require_write_access)],
 )
-def atualizar_atrasados(db: Session = Depends(get_db)) -> dict[str, int]:
+def atualizar_atrasados(
+    db: Session = Depends(get_db), usuario_atual: Usuario = Depends(get_current_user)
+) -> dict[str, int]:
     """Botão manual (Celery Beat fica pra depois): marca como 'atrasado'
     toda conta pendente cuja data_vencimento já passou.
     """
-    hoje = date.today()
-    contas = (
-        db.execute(
-            select(ContaFinanceira).where(
-                ContaFinanceira.status == StatusConta.pendente, ContaFinanceira.data_vencimento < hoje
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for conta in contas:
-        conta.status = StatusConta.atrasado
+    contas = contas_financeiras_service.marcar_atrasadas(db, usuario_atual.id)
     db.commit()
     return {"atualizadas": len(contas)}
 

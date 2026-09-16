@@ -43,16 +43,27 @@ class OfxParserProvider:
         if descartadas:
             logger.warning("extrato OFX: %d transação(ões) ignorada(s) por erro de formato: %s", len(descartadas), [d["error"] for d in descartadas])
         lancamentos = []
-        for transacao in ofx.account.statement.transactions:
+        for indice, transacao in enumerate(ofx.account.statement.transactions, start=1):
             tipo = TipoLancamentoExtrato.credito if transacao.type == "credit" else TipoLancamentoExtrato.debito
             data = transacao.date.date() if isinstance(transacao.date, datetime) else transacao.date
+            descricao = (transacao.memo or transacao.payee or "").strip()
+            valor = abs(transacao.amount)
+            # alguns bancos exportam <FITID> vazio. fitid=None faz o filtro de
+            # idempotência em processar_importacao_extrato (fitid == None)
+            # virar "fitid IS NULL" e colidir com QUALQUER outro lançamento
+            # sem FITID da mesma conta — tratando transações distintas como
+            # duplicata da primeira. Deriva um fitid sintético (mesma
+            # estratégia do CsvParserProvider) em vez de propagar None.
+            fitid = transacao.id or hashlib.sha256(
+                f"{indice}|{data}|{descricao}|{valor}|{tipo.value}".encode("utf-8")
+            ).hexdigest()[:32]
             lancamentos.append(
                 LancamentoExtratoDTO(
                     data=data,
-                    descricao=(transacao.memo or transacao.payee or "").strip(),
-                    valor=abs(transacao.amount),
+                    descricao=descricao,
+                    valor=valor,
                     tipo=tipo,
-                    fitid=transacao.id,
+                    fitid=fitid,
                 )
             )
         return lancamentos
@@ -82,20 +93,27 @@ class CsvParserProvider:
             raise ValueError(f"CSV precisa ter as colunas {sorted(colunas_esperadas)} (encontrado: {leitor.fieldnames})")
 
         lancamentos = []
-        for linha in leitor:
-            linha = {k.strip().lower(): (v or "").strip() for k, v in linha.items()}
+        for indice, linha_bruta in enumerate(leitor, start=1):
+            linha = {k.strip().lower(): (v or "").strip() for k, v in linha_bruta.items()}
             try:
                 data = datetime.strptime(linha["data"], "%Y-%m-%d").date()
                 valor = abs(Decimal(linha["valor"]))
+                tipo_raw = linha["tipo"].lower()
+                if tipo_raw not in ("credito", "debito"):
+                    raise ValueError(f"tipo inválido: {tipo_raw!r} (use 'credito' ou 'debito')")
             except (ValueError, InvalidOperation) as exc:
-                raise ValueError(f"linha de CSV inválida: {linha!r}") from exc
-
-            tipo_raw = linha["tipo"].lower()
-            if tipo_raw not in ("credito", "debito"):
-                raise ValueError(f"tipo inválido em linha de CSV: {tipo_raw!r} (use 'credito' ou 'debito')")
+                # uma linha ruim não pode derrubar o CSV inteiro — mesma
+                # filosofia do fail_fast=False do provider OFX: loga e pula
+                # só essa linha, segue processando as demais.
+                logger.warning("extrato CSV: linha #%d ignorada por erro de formato: %r (%s)", indice, linha, exc)
+                continue
 
             descricao = linha["descricao"]
-            fitid = hashlib.sha256(f"{data}|{descricao}|{valor}|{tipo_raw}".encode("utf-8")).hexdigest()[:32]
+            # inclui o índice da linha no hash: sem isso, duas transações
+            # idênticas no mesmo arquivo (mesma data/descrição/valor/tipo —
+            # plausível em tarifas recorrentes) colidiriam no mesmo fitid e
+            # a segunda seria descartada como falsa duplicata.
+            fitid = hashlib.sha256(f"{indice}|{data}|{descricao}|{valor}|{tipo_raw}".encode("utf-8")).hexdigest()[:32]
 
             lancamentos.append(
                 LancamentoExtratoDTO(

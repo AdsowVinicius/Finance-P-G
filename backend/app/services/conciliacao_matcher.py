@@ -93,11 +93,18 @@ class ConciliacaoMatcher:
     def _buscar_combinacao_com_soma_exata(
         self, candidatas: list[ContaFinanceira], valor_alvo: Decimal
     ) -> list[ContaFinanceira] | None:
+        """Busca combinações de candidatas cuja soma bate exatamente com o
+        valor alvo. Se mais de uma combinação bater, é ambíguo — mesma
+        política do match exato/tolerância, não arriscamos escolher sozinho.
+        """
         if len(candidatas) < 2 or len(candidatas) > _MAX_CANDIDATAS_PARA_PARCIAL:
             return None
 
+        encontradas: list[list[ContaFinanceira]] = []
         for tamanho in range(2, len(candidatas) + 1):
             for combinacao in itertools.combinations(candidatas, tamanho):
                 if sum((c.valor for c in combinacao), Decimal("0")) == valor_alvo:
-                    return list(combinacao)
-        return None
+                    encontradas.append(list(combinacao))
+                    if len(encontradas) > 1:
+                        return None
+        return encontradas[0] if len(encontradas) == 1 else None

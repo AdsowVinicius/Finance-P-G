@@ -1,4 +1,10 @@
-from app.services.nota_fiscal_service import extrair_chave_acesso
+import uuid
+from decimal import Decimal
+
+from app.models.conta_financeira import ContaFinanceira
+from app.models.enums import StatusConta, TipoOperacaoNota
+from app.models.nota_fiscal import NotaFiscal
+from app.services.nota_fiscal_service import atualizar_status_conciliacao, extrair_chave_acesso
 
 
 class TestExtrairChaveAcesso:
@@ -24,3 +30,53 @@ class TestExtrairChaveAcesso:
         chave_2 = "2" * 44
         texto = f"{chave_1} ... mais adiante ... {chave_2}"
         assert extrair_chave_acesso(texto) == chave_1
+
+    def test_sequencia_com_mais_de_44_digitos_nao_gera_falso_positivo(self) -> None:
+        # ex: linha digitável de boleto (47+ dígitos) grudada na chave no PDF —
+        # não pode devolver os 44 primeiros dígitos como se fosse a chave.
+        texto = "Linha digitável: " + "3" * 47
+        assert extrair_chave_acesso(texto) is None
+
+    def test_chave_grudada_em_sequencia_maior_nao_e_confundida(self) -> None:
+        chave_valida = "9" * 44
+        texto = f"lixo{'5' * 3}{chave_valida} depois texto normal"
+        assert extrair_chave_acesso(texto) is None
+
+
+class TestAtualizarStatusConciliacao:
+    def _nota(self) -> NotaFiscal:
+        return NotaFiscal(id=uuid.uuid4())
+
+    def _parcela(self, status: StatusConta) -> ContaFinanceira:
+        return ContaFinanceira(
+            id=uuid.uuid4(),
+            tipo_operacao=TipoOperacaoNota.entrada,
+            parceiro_id=uuid.uuid4(),
+            descricao="parcela teste",
+            valor=Decimal("100.00"),
+            status=status,
+        )
+
+    def test_parcela_cancelada_e_ignorada_no_calculo_de_status(self, monkeypatch) -> None:
+        nota = self._nota()
+        pagas = [self._parcela(StatusConta.pago), self._parcela(StatusConta.pago)]
+        cancelada = self._parcela(StatusConta.cancelado)
+        parcelas = pagas + [cancelada]
+
+        class _QueryFake:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return parcelas
+
+        class _DbFake:
+            def get(self, _model, _id):
+                return nota
+
+            def query(self, _model):
+                return _QueryFake()
+
+        atualizar_status_conciliacao(_DbFake(), nota.id)
+
+        assert nota.status.value == "conciliada"

@@ -3,19 +3,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { KpiCard } from '../components/KpiCard'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
 import { FORMA_PAGAMENTO_LABEL } from '../lib/formaPagamento'
+import { formatarData, formatarMoeda } from '../lib/formatters'
 import type { ContaFinanceira, DashboardVencimento, Parceiro, ResumoIndicadores } from '../types'
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:8000'
-
-function formatarMoeda(valor: string): string {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatarData(data: string): string {
-  const [ano, mes, dia] = data.split('-')
-  return `${dia}/${mes}/${ano}`
-}
 
 interface SecaoProps {
   titulo: string
@@ -38,8 +31,10 @@ function Secao({ titulo, icone: Icone, corClasse, contas, total, nomesParceiros,
   const [linhaDigitavel, setLinhaDigitavel] = useState('')
   const [codigoBarras, setCodigoBarras] = useState('')
   const [enviandoBoleto, setEnviandoBoleto] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
 
   function iniciarBaixa(conta: ContaFinanceira) {
+    setErro(null)
     setContaEmBoleto(null)
     setContaEmBaixa(conta.id)
     setDataPagamento(new Date().toISOString().slice(0, 10))
@@ -48,16 +43,22 @@ function Secao({ titulo, icone: Icone, corClasse, contas, total, nomesParceiros,
   }
 
   async function confirmarBaixa(contaId: string) {
-    await api.post(`/contas-financeiras/${contaId}/baixa`, {
-      data_pagamento: dataPagamento,
-      valor_pago: valorPago,
-      forma_pagamento: formaPagamento || null,
-    })
-    setContaEmBaixa(null)
-    onMudou()
+    setErro(null)
+    try {
+      await api.post(`/contas-financeiras/${contaId}/baixa`, {
+        data_pagamento: dataPagamento,
+        valor_pago: valorPago,
+        forma_pagamento: formaPagamento || null,
+      })
+      setContaEmBaixa(null)
+      onMudou()
+    } catch (err) {
+      setErro(extractApiError(err, 'Não foi possível dar baixa nessa conta'))
+    }
   }
 
   function iniciarBoleto(conta: ContaFinanceira) {
+    setErro(null)
     setContaEmBaixa(null)
     setContaEmBoleto(conta.id)
     setArquivoBoleto(null)
@@ -68,6 +69,7 @@ function Secao({ titulo, icone: Icone, corClasse, contas, total, nomesParceiros,
   async function confirmarBoleto(contaId: string) {
     if (!arquivoBoleto) return
     setEnviandoBoleto(true)
+    setErro(null)
     try {
       const form = new FormData()
       form.append('arquivo', arquivoBoleto)
@@ -76,6 +78,8 @@ function Secao({ titulo, icone: Icone, corClasse, contas, total, nomesParceiros,
       await api.post(`/contas-financeiras/${contaId}/boleto`, form)
       setContaEmBoleto(null)
       onMudou()
+    } catch (err) {
+      setErro(extractApiError(err, 'Não foi possível salvar o boleto'))
     } finally {
       setEnviandoBoleto(false)
     }
@@ -187,6 +191,7 @@ function Secao({ titulo, icone: Icone, corClasse, contas, total, nomesParceiros,
                   >
                     Cancelar
                   </button>
+                  {erro && <span className="text-xs text-red-600">{erro}</span>}
                 </div>
               )}
               {contaEmBoleto === conta.id && (
@@ -229,6 +234,7 @@ function Secao({ titulo, icone: Icone, corClasse, contas, total, nomesParceiros,
                   >
                     Cancelar
                   </button>
+                  {erro && <span className="text-xs text-red-600">{erro}</span>}
                 </div>
               )}
             </li>
@@ -246,18 +252,24 @@ export function DashboardPage() {
   const [nomesParceiros, setNomesParceiros] = useState<Record<string, string>>({})
   const [carregando, setCarregando] = useState(true)
   const [atualizando, setAtualizando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
 
   async function carregar() {
     setCarregando(true)
-    const [dashRes, parceirosRes, resumoRes] = await Promise.all([
-      api.get<DashboardVencimento>('/contas-financeiras/dashboard'),
-      api.get<Parceiro[]>('/parceiros', { params: { apenas_ativos: false } }),
-      api.get<ResumoIndicadores>('/indicadores/resumo'),
-    ])
-    setDashboard(dashRes.data)
-    setNomesParceiros(Object.fromEntries(parceirosRes.data.map((p) => [p.id, p.razao_social])))
-    setResumo(resumoRes.data)
-    setCarregando(false)
+    try {
+      const [dashRes, parceirosRes, resumoRes] = await Promise.all([
+        api.get<DashboardVencimento>('/contas-financeiras/dashboard'),
+        api.get<Parceiro[]>('/parceiros', { params: { apenas_ativos: false } }),
+        api.get<ResumoIndicadores>('/indicadores/resumo'),
+      ])
+      setDashboard(dashRes.data)
+      setNomesParceiros(Object.fromEntries(parceirosRes.data.map((p) => [p.id, p.razao_social])))
+      setResumo(resumoRes.data)
+    } catch (err) {
+      setErro(extractApiError(err, 'Não foi possível carregar o dashboard'))
+    } finally {
+      setCarregando(false)
+    }
   }
 
   useEffect(() => {
@@ -270,9 +282,18 @@ export function DashboardPage() {
 
   async function atualizarAtrasados() {
     setAtualizando(true)
-    await api.post('/contas-financeiras/atualizar-atrasados')
-    await carregar()
-    setAtualizando(false)
+    try {
+      await api.post('/contas-financeiras/atualizar-atrasados')
+      await carregar()
+    } catch (err) {
+      setErro(extractApiError(err, 'Não foi possível atualizar as contas atrasadas'))
+    } finally {
+      setAtualizando(false)
+    }
+  }
+
+  if (erro) {
+    return <p className="text-sm text-red-600">{erro}</p>
   }
 
   if (carregando || !dashboard || !resumo) {

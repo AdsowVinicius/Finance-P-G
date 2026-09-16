@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Numeric, String, Text
+from sqlalchemy import Date, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -14,6 +14,7 @@ from app.models.pg_enums import status_conciliacao_linha_pg, tipo_lancamento_ext
 
 class LancamentoExtrato(Base):
     __tablename__ = "lancamentos_extrato"
+    __table_args__ = (UniqueConstraint("conta_bancaria_id", "fitid", name="uq_lancamento_extrato_fitid"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     extrato_importado_id: Mapped[uuid.UUID] = mapped_column(

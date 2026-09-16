@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
 import type { PapelUsuario, Usuario } from '../types'
 
 const papeis: PapelUsuario[] = ['sub', 'financeiro', 'admin', 'master']
@@ -27,8 +28,7 @@ function EditarUsuarioForm({ usuario, onSalvo, onCancelar }: { usuario: Usuario;
       })
       onSalvo()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Não foi possível salvar')
+      setErro(extractApiError(err, 'Não foi possível salvar'))
     } finally {
       setSalvando(false)
     }
@@ -110,8 +110,7 @@ export function UsuariosPage() {
       setMostrarForm(false)
       await carregar()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Não foi possível criar o usuário')
+      setErro(extractApiError(err, 'Não foi possível criar o usuário'))
     }
   }
 

@@ -1,6 +1,7 @@
 import { Bot, Send, User } from 'lucide-react'
 import { useRef, useState, type FormEvent } from 'react'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
 
 interface Mensagem {
   autor: 'usuario' | 'assistente'
@@ -49,9 +50,7 @@ export function AssistentePage() {
       const { data } = await api.post<{ resposta: string }>('/assistente/perguntar', { pergunta: perguntaLimpa })
       setMensagens((atual) => [...atual, { autor: 'assistente', texto: data.resposta }])
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      const mensagemErro =
-        typeof detail === 'string' ? detail : 'Não consegui falar com o assistente agora. Tente de novo.'
+      const mensagemErro = extractApiError(err, 'Não consegui falar com o assistente agora. Tente de novo.')
       setErro(mensagemErro)
     } finally {
       setEnviando(false)

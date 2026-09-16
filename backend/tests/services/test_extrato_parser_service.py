@@ -142,6 +142,70 @@ NEWFILEUID:NONE
 """
 
 
+_OFX_COM_FITID_VAZIO = b"""OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+<SIGNONMSGSRSV1>
+<SONRS>
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+<DTSERVER>20260914120000
+<LANGUAGE>POR
+</SONRS>
+</SIGNONMSGSRSV1>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<TRNUID>1
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+<STMTRS>
+<CURDEF>BRL
+<BANKACCTFROM>
+<BANKID>341
+<ACCTID>12345-6
+<ACCTTYPE>CHECKING
+</BANKACCTFROM>
+<BANKTRANLIST>
+<DTSTART>20260901
+<DTEND>20260914
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20260910
+<TRNAMT>-10.00
+<FITID>
+<MEMO>TARIFA 1
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20260910
+<TRNAMT>-10.00
+<FITID>
+<MEMO>TARIFA 2
+</STMTTRN>
+</BANKTRANLIST>
+<LEDGERBAL>
+<BALAMT>5000.00
+<DTASOF>20260914
+</LEDGERBAL>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>
+"""
+
+
 class TestOfxParserProvider:
     def setup_method(self) -> None:
         self.provider = OfxParserProvider()
@@ -172,6 +236,15 @@ class TestOfxParserProvider:
     def test_descricao_vem_do_memo(self) -> None:
         lancamentos = self.provider.parse(_OFX_EXEMPLO)
         assert lancamentos[0].descricao == "PIX RECEBIDO FORNECEDOR TESTE"
+
+    def test_fitid_vazio_nao_vira_none_e_nao_colide_entre_transacoes(self) -> None:
+        # fitid=None faria o filtro de idempotência (fitid == None) virar
+        # "IS NULL" e tratar a segunda transação como duplicata da primeira
+        # (mesmo sendo transações distintas) — precisa de um fitid derivado.
+        lancamentos = self.provider.parse(_OFX_COM_FITID_VAZIO)
+        assert len(lancamentos) == 2
+        assert all(l.fitid for l in lancamentos)
+        assert lancamentos[0].fitid != lancamentos[1].fitid
 
 
 class TestCsvParserProvider:
@@ -209,10 +282,50 @@ class TestCsvParserProvider:
         with pytest.raises(ValueError, match="colunas"):
             self.provider.parse(conteudo)
 
-    def test_tipo_invalido_leva_a_erro_claro(self) -> None:
-        conteudo = "data,descricao,valor,tipo\n2026-09-10,teste,50.00,transferencia\n".encode("utf-8")
-        with pytest.raises(ValueError, match="tipo inválido"):
-            self.provider.parse(conteudo)
+    def test_tipo_invalido_e_ignorado_sem_derrubar_o_csv_inteiro(self) -> None:
+        # mesma filosofia do fail_fast=False do OFX: uma linha ruim não pode
+        # abortar o parse das demais linhas válidas do mesmo arquivo.
+        conteudo = (
+            "data,descricao,valor,tipo\n"
+            "2026-09-10,teste,50.00,transferencia\n"
+            "2026-09-11,boa,100.00,credito\n"
+        ).encode("utf-8")
+        lancamentos = self.provider.parse(conteudo)
+        assert len(lancamentos) == 1
+        assert lancamentos[0].valor == Decimal("100.00")
+
+    def test_linha_com_data_invalida_e_ignorada_sem_derrubar_as_demais(self) -> None:
+        conteudo = (
+            "data,descricao,valor,tipo\n"
+            "31/09/2026,data invalida,50.00,debito\n"
+            "2026-09-11,boa,100.00,credito\n"
+        ).encode("utf-8")
+        lancamentos = self.provider.parse(conteudo)
+        assert len(lancamentos) == 1
+        assert lancamentos[0].descricao == "boa"
+
+    def test_linhas_identicas_no_mesmo_arquivo_nao_colidem_no_fitid(self) -> None:
+        # duas transações com mesma data/descrição/valor/tipo no mesmo CSV
+        # (ex: duas tarifas recorrentes iguais no mesmo dia) são legítimas —
+        # não podem colidir no mesmo fitid e uma "sumir" como falsa duplicata.
+        conteudo = (
+            "data,descricao,valor,tipo\n"
+            "2026-09-10,tarifa,10.00,debito\n"
+            "2026-09-10,tarifa,10.00,debito\n"
+        ).encode("utf-8")
+        lancamentos = self.provider.parse(conteudo)
+        assert len(lancamentos) == 2
+        assert lancamentos[0].fitid != lancamentos[1].fitid
+
+    def test_mesmo_arquivo_reimportado_gera_os_mesmos_fitids_nas_mesmas_linhas(self) -> None:
+        conteudo = (
+            "data,descricao,valor,tipo\n"
+            "2026-09-10,tarifa,10.00,debito\n"
+            "2026-09-10,tarifa,10.00,debito\n"
+        ).encode("utf-8")
+        primeira = self.provider.parse(conteudo)
+        segunda = self.provider.parse(conteudo)
+        assert [l.fitid for l in primeira] == [l.fitid for l in segunda]
 
 
 class TestExtratoParserServiceRegistry:

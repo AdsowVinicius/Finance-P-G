@@ -5,15 +5,9 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { KpiCard } from '../components/KpiCard'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
+import { formatarMoeda, formatarMoedaCompacta } from '../lib/formatters'
 import type { CentroCusto, NotaCentroCusto, OrcamentoCentroCusto, PontoCurvaS, ResumoCentroCusto } from '../types'
-
-function formatarMoeda(valor: string): string {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatarMoedaCompacta(valor: number): string {
-  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' })
-}
 
 function formatarMes(mes: string): string {
   const [ano, m] = mes.split('-')
@@ -92,6 +86,7 @@ export function AnaliseCentroCustoPage() {
   const [orcamento, setOrcamento] = useState<OrcamentoCentroCusto[]>([])
   const [notas, setNotas] = useState<NotaCentroCusto[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState<string | null>(null)
 
   const [novoMesOrcamento, setNovoMesOrcamento] = useState('')
   const [novoValorOrcamento, setNovoValorOrcamento] = useState('')
@@ -100,11 +95,17 @@ export function AnaliseCentroCustoPage() {
   const [enviandoNota, setEnviandoNota] = useState(false)
 
   useEffect(() => {
-    api.get<CentroCusto[]>('/centros-custo').then(({ data }) => {
-      setCentros(data)
-      if (data.length > 0) setCentroCustoId(data[0].id)
-      else setCarregando(false)
-    })
+    api
+      .get<CentroCusto[]>('/centros-custo')
+      .then(({ data }) => {
+        setCentros(data)
+        if (data.length > 0) setCentroCustoId(data[0].id)
+        else setCarregando(false)
+      })
+      .catch((err) => {
+        setErro(extractApiError(err, 'Não foi possível carregar os centros de custo'))
+        setCarregando(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -115,17 +116,22 @@ export function AnaliseCentroCustoPage() {
 
   async function carregarAnalise(id: string) {
     setCarregando(true)
-    const [resumoRes, curvaRes, orcamentoRes, notasRes] = await Promise.all([
-      api.get<ResumoCentroCusto>(`/centros-custo/${id}/resumo`),
-      api.get<PontoCurvaS[]>(`/centros-custo/${id}/curva-s`),
-      api.get<OrcamentoCentroCusto[]>(`/centros-custo/${id}/orcamento`),
-      api.get<NotaCentroCusto[]>(`/centros-custo/${id}/notas`),
-    ])
-    setResumo(resumoRes.data)
-    setCurvaS(curvaRes.data)
-    setOrcamento(orcamentoRes.data)
-    setNotas(notasRes.data)
-    setCarregando(false)
+    try {
+      const [resumoRes, curvaRes, orcamentoRes, notasRes] = await Promise.all([
+        api.get<ResumoCentroCusto>(`/centros-custo/${id}/resumo`),
+        api.get<PontoCurvaS[]>(`/centros-custo/${id}/curva-s`),
+        api.get<OrcamentoCentroCusto[]>(`/centros-custo/${id}/orcamento`),
+        api.get<NotaCentroCusto[]>(`/centros-custo/${id}/notas`),
+      ])
+      setResumo(resumoRes.data)
+      setCurvaS(curvaRes.data)
+      setOrcamento(orcamentoRes.data)
+      setNotas(notasRes.data)
+    } catch (err) {
+      setErro(extractApiError(err, 'Não foi possível carregar a análise desse centro de custo'))
+    } finally {
+      setCarregando(false)
+    }
   }
 
   async function salvarOrcamentoMes(mes: string, valor: string) {
@@ -160,6 +166,10 @@ export function AnaliseCentroCustoPage() {
 
   function irParaRelatorios(params: Record<string, string>) {
     navigate(`/relatorios?${new URLSearchParams({ centro_custo_id: centroCustoId, ...params }).toString()}`)
+  }
+
+  if (erro) {
+    return <p className="text-sm text-red-600">{erro}</p>
   }
 
   if (centros.length === 0 && !carregando) {
@@ -295,7 +305,7 @@ export function AnaliseCentroCustoPage() {
                         tickLine={false}
                         tickFormatter={(v) => formatarMoedaCompacta(v)}
                       />
-                      <Tooltip formatter={(v: number) => formatarMoeda(String(v))} />
+                      <Tooltip formatter={(v) => formatarMoeda(String(v))} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Line type="monotone" dataKey="Planejado" stroke="#64748b" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} />
                       <Line type="monotone" dataKey="Realizado" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} />
