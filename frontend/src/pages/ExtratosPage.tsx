@@ -1,16 +1,9 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
+import { formatarData, formatarMoeda } from '../lib/formatters'
 import type { ContaBancaria, ContaFinanceira, ExtratoImportado, FormatoExtrato, LancamentoExtrato } from '../types'
-
-function formatarMoeda(valor: string): string {
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-function formatarData(data: string): string {
-  const [ano, mes, dia] = data.split('-')
-  return `${dia}/${mes}/${ano}`
-}
 
 function CandidatoConciliacao({ lancamento, onResolvido }: { lancamento: LancamentoExtrato; onResolvido: () => void }) {
   const [candidatas, setCandidatas] = useState<ContaFinanceira[] | null>(null)
@@ -43,8 +36,7 @@ function CandidatoConciliacao({ lancamento, onResolvido }: { lancamento: Lancame
       await api.post(`/conciliacoes/${lancamento.id}/confirmar`, { contas_financeira_ids: [...selecionadas] })
       onResolvido()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Não foi possível confirmar a conciliação')
+      setErro(extractApiError(err, 'Não foi possível confirmar a conciliação'))
     } finally {
       setEnviando(false)
     }
@@ -329,8 +321,7 @@ export function ExtratosPage() {
       setMostrarForm(false)
       await carregar()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Não foi possível importar o extrato')
+      setErro(extractApiError(err, 'Não foi possível importar o extrato'))
     } finally {
       setEnviando(false)
     }

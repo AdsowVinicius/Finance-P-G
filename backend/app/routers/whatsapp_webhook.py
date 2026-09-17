@@ -30,7 +30,13 @@ def verificar_webhook(
 
 def _validar_assinatura(corpo: bytes, assinatura: str | None) -> None:
     if not settings.whatsapp_app_secret:
-        return
+        # Fail-closed: sem app secret configurado não há como verificar que
+        # a requisição veio mesmo da Meta — aceitar sem validar deixaria
+        # qualquer POST não autenticado criar pré-lançamentos/notas fiscais.
+        logger.error("WHATSAPP_APP_SECRET não configurado — recusando webhook por segurança")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Webhook do WhatsApp não está configurado com segurança"
+        )
     if assinatura is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Assinatura ausente")
     esperado = "sha256=" + hmac.new(settings.whatsapp_app_secret.encode(), corpo, hashlib.sha256).hexdigest()
@@ -52,18 +58,28 @@ async def receber_mensagem(request: Request, x_hub_signature_256: str | None = H
             # já que o app pode ter mais de um número WhatsApp conectado.
             phone_number_id = valor.get("metadata", {}).get("phone_number_id")
             for mensagem in valor.get("messages", []):
-                tipo = mensagem.get("type")
-                telefone = mensagem["from"]
+                # cada mensagem é isolada: um campo inesperado numa mensagem
+                # não pode derrubar a request com 500 e fazer a Meta reentregar
+                # o payload inteiro (inclusive mensagens já processadas com
+                # sucesso antes dela).
+                try:
+                    wamid = mensagem.get("id")
+                    tipo = mensagem.get("type")
+                    telefone = mensagem["from"]
 
-                if tipo == "text":
-                    processar_mensagem_whatsapp.delay(telefone, mensagem["text"]["body"], phone_number_id)
-                elif tipo == "audio":
-                    # voice note — transcreve e trata como se fosse texto
-                    processar_audio_whatsapp.delay(telefone, mensagem["audio"]["id"], phone_number_id)
-                elif tipo in ("image", "document"):
-                    # foto/PDF de nota fiscal — vira nota fiscal pendente de revisão
-                    processar_midia_nota_whatsapp.delay(telefone, mensagem[tipo]["id"], tipo, phone_number_id)
-                else:
-                    logger.info("Ignorando mensagem WhatsApp não suportada: %s", tipo)
+                    if tipo == "text":
+                        processar_mensagem_whatsapp.delay(telefone, mensagem["text"]["body"], phone_number_id, wamid)
+                    elif tipo == "audio":
+                        # voice note — transcreve e trata como se fosse texto
+                        processar_audio_whatsapp.delay(telefone, mensagem["audio"]["id"], phone_number_id, wamid)
+                    elif tipo in ("image", "document"):
+                        # foto/PDF de nota fiscal — vira nota fiscal pendente de revisão
+                        processar_midia_nota_whatsapp.delay(
+                            telefone, mensagem[tipo]["id"], tipo, phone_number_id, wamid
+                        )
+                    else:
+                        logger.info("Ignorando mensagem WhatsApp não suportada: %s", tipo)
+                except Exception:
+                    logger.exception("Falha ao processar item de mensagem WhatsApp: %r", mensagem)
 
     return {"status": "ok"}

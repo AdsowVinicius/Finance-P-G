@@ -127,7 +127,10 @@ class NfeConsultaClient:
 
 
 def parse_nfe_xml(xml_texto: str) -> DadosNotaFiscalExtraidos:
-    raiz = etree.fromstring(xml_texto.encode("utf-8"))
+    try:
+        raiz = etree.fromstring(xml_texto.encode("utf-8"))
+    except etree.XMLSyntaxError as exc:
+        raise NfeConsultaError(f"XML da NFe malformado: {exc}") from exc
 
     def _texto(xpath: str) -> str | None:
         elementos = raiz.xpath(xpath, namespaces=_NS)
@@ -141,15 +144,19 @@ def parse_nfe_xml(xml_texto: str) -> DadosNotaFiscalExtraidos:
     if not (cnpj and razao_social and valor_total_texto and data_emissao_texto):
         raise NfeConsultaError("XML da NFe não trouxe todos os campos esperados (emitente/valor/data)")
 
-    if "T" in data_emissao_texto:
-        data_emissao = datetime.fromisoformat(data_emissao_texto).date()
-    else:
-        data_emissao = datetime.strptime(data_emissao_texto, "%Y-%m-%d").date()
+    try:
+        if "T" in data_emissao_texto:
+            data_emissao = datetime.fromisoformat(data_emissao_texto).date()
+        else:
+            data_emissao = datetime.strptime(data_emissao_texto, "%Y-%m-%d").date()
+        valor_total = Decimal(valor_total_texto)
+    except (ValueError, ArithmeticError) as exc:
+        raise NfeConsultaError(f"XML da NFe trouxe valor/data em formato inesperado: {exc}") from exc
 
     return DadosNotaFiscalExtraidos(
         fornecedor_cnpj=cnpj,
         fornecedor_razao_social=razao_social,
-        valor_total=Decimal(valor_total_texto),
+        valor_total=valor_total,
         data_emissao=data_emissao,
         xml_bruto=xml_texto,
     )

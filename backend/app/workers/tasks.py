@@ -15,6 +15,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from sqlalchemy.exc import IntegrityError
+
 from app.config import settings
 from app.core.storage import salvar_bytes
 from app.database import SessionLocal
@@ -53,7 +55,12 @@ logger = logging.getLogger(__name__)
 def processar_nota_fiscal(nota_fiscal_id: str) -> None:
     db = SessionLocal()
     try:
-        nota = db.get(NotaFiscal, uuid.UUID(nota_fiscal_id))
+        # FOR UPDATE trava a linha até o commit/rollback desta task — evita
+        # que um retry do broker (ou um .delay() duplicado) rodando em
+        # paralelo passe pela checagem de idempotência abaixo antes do
+        # primeiro processamento commitar, o que duplicaria as parcelas
+        # geradas no bloco `eh_sentinela` mais adiante.
+        nota = db.query(NotaFiscal).filter(NotaFiscal.id == uuid.UUID(nota_fiscal_id)).with_for_update().first()
         if nota is None or not nota.chave_acesso:
             return
 
@@ -150,77 +157,104 @@ def processar_importacao_extrato(extrato_importado_id: str, tolerancia_dias: int
             db.commit()
             return
 
-        lancamentos_criados: list[LancamentoExtrato] = []
-        for dto in lancamentos_dto:
-            # idempotência: reimportar o mesmo extrato não duplica (UNIQUE conta_bancaria_id+fitid)
-            existe = (
-                db.query(LancamentoExtrato)
-                .filter(
-                    LancamentoExtrato.conta_bancaria_id == extrato.conta_bancaria_id,
-                    LancamentoExtrato.fitid == dto.fitid,
-                )
-                .first()
-            )
-            if existe is not None:
-                continue
-
-            lancamento = LancamentoExtrato(
-                extrato_importado_id=extrato.id,
-                conta_bancaria_id=extrato.conta_bancaria_id,
-                data=dto.data,
-                descricao=dto.descricao,
-                valor=dto.valor,
-                tipo=dto.tipo,
-                fitid=dto.fitid,
-            )
-            db.add(lancamento)
-            lancamentos_criados.append(lancamento)
-
-        db.flush()
-
-        matcher = ConciliacaoMatcher(tolerancia_dias=tolerancia_dias)
-        candidatas_pendentes = (
-            db.query(ContaFinanceira)
-            .filter(ContaFinanceira.status.in_([StatusConta.pendente, StatusConta.atrasado]))
-            .all()
-        )
-
-        for lancamento in lancamentos_criados:
-            resultado = matcher.conciliar(
-                LancamentoParaConciliar(data=lancamento.data, valor=lancamento.valor, tipo=lancamento.tipo),
-                candidatas_pendentes,
-            )
-            if not resultado.encontrou_match:
-                continue
-
-            for conta in resultado.contas:
-                db.add(
-                    Conciliacao(
-                        lancamento_extrato_id=lancamento.id,
-                        conta_financeira_id=conta.id,
-                        valor_conciliado=conta.valor,
-                        tipo_match=resultado.tipo_match,
+        try:
+            lancamentos_criados: list[LancamentoExtrato] = []
+            for indice, dto in enumerate(lancamentos_dto, start=1):
+                # idempotência: reimportar o mesmo extrato não duplica (UNIQUE conta_bancaria_id+fitid)
+                existe = (
+                    db.query(LancamentoExtrato)
+                    .filter(
+                        LancamentoExtrato.conta_bancaria_id == extrato.conta_bancaria_id,
+                        LancamentoExtrato.fitid == dto.fitid,
                     )
+                    .first()
                 )
-                conta.status = StatusConta.pago
-                conta.data_pagamento = lancamento.data
-                conta.valor_pago = conta.valor
-                conta.forma_baixa = FormaBaixa.conciliacao_automatica
-                atualizar_status_conciliacao(db, conta.nota_fiscal_id)
-                candidatas_pendentes.remove(conta)  # não reusar a mesma conta noutro lançamento deste lote
+                if existe is not None:
+                    continue
 
-            lancamento.status_conciliacao = StatusConciliacaoLinha.conciliado
+                lancamento = LancamentoExtrato(
+                    extrato_importado_id=extrato.id,
+                    conta_bancaria_id=extrato.conta_bancaria_id,
+                    data=dto.data,
+                    descricao=dto.descricao,
+                    valor=dto.valor,
+                    tipo=dto.tipo,
+                    fitid=dto.fitid,
+                )
+                try:
+                    # savepoint por lançamento: um conflito de integridade
+                    # nesta linha (ex: corrida com outra importação do mesmo
+                    # fitid) só descarta esta linha, nunca o lote inteiro.
+                    with db.begin_nested():
+                        db.add(lancamento)
+                        db.flush()
+                except IntegrityError as exc:
+                    logger.warning(
+                        "lançamento #%d do extrato %s ignorado por conflito de integridade: %s",
+                        indice,
+                        extrato.id,
+                        exc,
+                    )
+                    continue
+                lancamentos_criados.append(lancamento)
 
-        extrato.status = StatusImportacao.concluido
-        db.commit()
+            matcher = ConciliacaoMatcher(tolerancia_dias=tolerancia_dias)
+            candidatas_pendentes = (
+                db.query(ContaFinanceira)
+                .filter(ContaFinanceira.status.in_([StatusConta.pendente, StatusConta.atrasado]))
+                .all()
+            )
+
+            for lancamento in lancamentos_criados:
+                resultado = matcher.conciliar(
+                    LancamentoParaConciliar(data=lancamento.data, valor=lancamento.valor, tipo=lancamento.tipo),
+                    candidatas_pendentes,
+                )
+                if not resultado.encontrou_match:
+                    continue
+
+                for conta in resultado.contas:
+                    db.add(
+                        Conciliacao(
+                            lancamento_extrato_id=lancamento.id,
+                            conta_financeira_id=conta.id,
+                            valor_conciliado=conta.valor,
+                            tipo_match=resultado.tipo_match,
+                        )
+                    )
+                    conta.status = StatusConta.pago
+                    conta.data_pagamento = lancamento.data
+                    conta.valor_pago = conta.valor
+                    conta.forma_baixa = FormaBaixa.conciliacao_automatica
+                    atualizar_status_conciliacao(db, conta.nota_fiscal_id)
+                    candidatas_pendentes.remove(conta)  # não reusar a mesma conta noutro lançamento deste lote
+
+                lancamento.status_conciliacao = StatusConciliacaoLinha.conciliado
+
+            extrato.status = StatusImportacao.concluido
+            db.commit()
+        except Exception as exc:
+            # guarda geral: qualquer falha inesperada aqui (não só a
+            # montagem dos lançamentos) não pode deixar o extrato preso
+            # indefinidamente em "processando" sem sinalizar erro.
+            db.rollback()
+            extrato.status = StatusImportacao.erro
+            extrato.mensagem_erro = str(exc)
+            db.commit()
     finally:
         db.close()
 
 
 @celery_app.task(name="processar_mensagem_whatsapp")
-def processar_mensagem_whatsapp(telefone: str, texto: str, phone_number_id: str | None = None) -> None:
+def processar_mensagem_whatsapp(
+    telefone: str, texto: str, phone_number_id: str | None = None, wamid: str | None = None
+) -> None:
     db = SessionLocal()
     try:
+        # idempotência: a Cloud API reentrega webhook (timeout, non-200 etc.)
+        # — sem isso, a reentrega processaria a mesma mensagem de novo.
+        if not whatsapp_service.marcar_mensagem_como_processada(db, wamid):
+            return
         resposta = whatsapp_service.processar_mensagem(telefone, texto, db)
     except whatsapp_service.WhatsappIndisponivelError:
         resposta = "Assistente indisponível no momento — tente novamente mais tarde."
@@ -230,11 +264,20 @@ def processar_mensagem_whatsapp(telefone: str, texto: str, phone_number_id: str 
 
 
 @celery_app.task(name="processar_audio_whatsapp")
-def processar_audio_whatsapp(telefone: str, media_id: str, phone_number_id: str | None = None) -> None:
+def processar_audio_whatsapp(
+    telefone: str, media_id: str, phone_number_id: str | None = None, wamid: str | None = None
+) -> None:
     """Voice note do WhatsApp: baixa o áudio, transcreve localmente (Whisper,
     sem API paga) e trata o texto resultante exatamente como se tivesse sido
     digitado — reaproveita o mesmo processar_mensagem do RF16/pré-lançamento.
     """
+    db_dedup = SessionLocal()
+    try:
+        if not whatsapp_service.marcar_mensagem_como_processada(db_dedup, wamid):
+            return
+    finally:
+        db_dedup.close()
+
     try:
         conteudo, _mime_type = whatsapp_client.baixar_midia(media_id)
     except Exception:
@@ -242,7 +285,15 @@ def processar_audio_whatsapp(telefone: str, media_id: str, phone_number_id: str 
         whatsapp_client.enviar_mensagem_texto(telefone, "Não consegui baixar seu áudio — tenta de novo?", phone_number_id)
         return
 
-    texto = transcricao_service.transcrever(conteudo)
+    try:
+        texto = transcricao_service.transcrever(conteudo)
+    except Exception:
+        logger.exception("Falha ao transcrever áudio do WhatsApp (media_id=%s)", media_id)
+        whatsapp_client.enviar_mensagem_texto(
+            telefone, "Não consegui processar seu áudio — pode tentar de novo ou mandar por texto?", phone_number_id
+        )
+        return
+
     if not texto:
         whatsapp_client.enviar_mensagem_texto(
             telefone, "Não consegui entender o áudio — pode tentar de novo ou mandar por texto?", phone_number_id
@@ -260,7 +311,13 @@ def processar_audio_whatsapp(telefone: str, media_id: str, phone_number_id: str 
 
 
 @celery_app.task(name="processar_midia_nota_whatsapp")
-def processar_midia_nota_whatsapp(telefone: str, media_id: str, tipo_midia: str, phone_number_id: str | None = None) -> None:
+def processar_midia_nota_whatsapp(
+    telefone: str,
+    media_id: str,
+    tipo_midia: str,
+    phone_number_id: str | None = None,
+    wamid: str | None = None,
+) -> None:
     """Foto ou PDF de nota fiscal mandado por WhatsApp: baixa, tenta achar a
     chave de acesso (só funciona em PDF com camada de texto — foto sempre
     cai no fallback manual, igual upload de PDF escaneado) e cria a nota
@@ -268,6 +325,9 @@ def processar_midia_nota_whatsapp(telefone: str, media_id: str, tipo_midia: str,
     """
     db = SessionLocal()
     try:
+        if not whatsapp_service.marcar_mensagem_como_processada(db, wamid):
+            return
+
         usuario = db.query(Usuario).filter(Usuario.telefone_whatsapp == telefone).first()
         if usuario is None:
             whatsapp_client.enviar_mensagem_texto(

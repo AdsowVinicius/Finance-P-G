@@ -65,6 +65,16 @@ class TestParseNfeXml:
         with pytest.raises(NfeConsultaError, match="não trouxe todos os campos"):
             parse_nfe_xml(xml_incompleto)
 
+    def test_xml_malformado_levanta_nfe_consulta_error_em_vez_de_xmlsyntaxerror(self) -> None:
+        xml_quebrado = "<nfeProc><NFe><infNFe>tag nunca fechada"
+        with pytest.raises(NfeConsultaError, match="malformado"):
+            parse_nfe_xml(xml_quebrado)
+
+    def test_valor_total_invalido_levanta_nfe_consulta_error(self) -> None:
+        xml_valor_invalido = _XML_EXEMPLO.replace("<vNF>1234.56</vNF>", "<vNF>not-a-number</vNF>")
+        with pytest.raises(NfeConsultaError, match="formato inesperado"):
+            parse_nfe_xml(xml_valor_invalido)
+
 
 class TestNfeConsultaClientSemChaveConfigurada:
     def test_sem_api_key_levanta_erro_ao_chamar(self) -> None:

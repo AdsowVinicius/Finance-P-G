@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
+import { formatarMoeda } from '../lib/formatters'
 import type {
   CategoriaLancamento,
   CentroCusto,
@@ -85,8 +87,7 @@ export function LancamentosRecorrentesPage() {
       setNovaCategoriaRegra('bancaria')
       setMostrarNovaCategoria(false)
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setErro(detail ?? 'Não foi possível criar a categoria')
+      setErro(extractApiError(err, 'Não foi possível criar a categoria'))
     } finally {
       setSalvandoCategoria(false)
     }
@@ -118,8 +119,7 @@ export function LancamentosRecorrentesPage() {
       setMostrarForm(false)
       await carregar()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setErro(detail ?? 'Não foi possível salvar o lançamento recorrente')
+      setErro(extractApiError(err, 'Não foi possível salvar o lançamento recorrente'))
     }
   }
 
@@ -383,7 +383,7 @@ export function LancamentosRecorrentesPage() {
                 <td className="px-4 py-2">{l.descricao}</td>
                 <td className="px-4 py-2">{nomeParceiro(l.parceiro_id)}</td>
                 <td className="px-4 py-2">
-                  {Number(l.valor_parcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {formatarMoeda(l.valor_parcela)}
                 </td>
                 <td className="px-4 py-2 capitalize">{l.periodicidade.replace('_', ' ')}</td>
                 <td className="px-4 py-2">{l.data_inicio}</td>

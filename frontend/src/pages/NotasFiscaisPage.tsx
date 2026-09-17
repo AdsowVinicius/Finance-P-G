@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { extractApiError } from '../lib/apiError'
+import { formatarMoeda } from '../lib/formatters'
 import type { CentroCusto, ContaFinanceira, NotaFiscal, Parceiro, StatusNota, TipoNota, TipoOperacaoNota } from '../types'
 
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:8000'
@@ -46,8 +48,7 @@ function ChaveManualForm({ notaId, onSalvo }: { notaId: string; onSalvo: () => v
       setChave('')
       onSalvo()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Chave inválida — precisa ter exatamente 44 dígitos')
+      setErro(extractApiError(err, 'Chave inválida — precisa ter exatamente 44 dígitos'))
     }
   }
 
@@ -184,6 +185,12 @@ function BoletoForm({ contaId, onSalvo }: { contaId: string; onSalvo: () => void
         placeholder="Linha digitável"
         className="w-44 rounded border border-slate-300 px-2 py-1 text-xs"
       />
+      <input
+        value={codigoBarras}
+        onChange={(e) => setCodigoBarras(e.target.value)}
+        placeholder="Código de barras"
+        className="w-44 rounded border border-slate-300 px-2 py-1 text-xs"
+      />
       <button
         onClick={salvar}
         disabled={!arquivo || enviando}
@@ -238,7 +245,7 @@ function ParcelasDaNota({ notaId }: { notaId: string }) {
             <td className="px-4 py-1.5">{p.numero_parcela}/{p.total_parcelas}</td>
             <td className="px-4 py-1.5">{p.data_vencimento}</td>
             <td className="px-4 py-1.5">
-              {Number(p.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              {formatarMoeda(p.valor)}
             </td>
             <td className="px-4 py-1.5">{statusContaLabel[p.status]}</td>
             <td className="px-4 py-1.5">
@@ -362,8 +369,7 @@ export function NotasFiscaisPage() {
       setMostrarForm(false)
       await carregar()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Não foi possível cadastrar a nota fiscal')
+      setErro(extractApiError(err, 'Não foi possível cadastrar a nota fiscal'))
     } finally {
       setEnviando(false)
     }
@@ -575,7 +581,7 @@ export function NotasFiscaisPage() {
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    {Number(n.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    {formatarMoeda(n.valor_total)}
                   </td>
                   <td className="px-4 py-2">{n.data_emissao}</td>
                   <td className="px-4 py-2">{n.despesa_parcelada ? `${n.numero_parcelas}x` : 'à vista'}</td>

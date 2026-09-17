@@ -11,14 +11,38 @@ from decimal import Decimal
 from typing import Any
 
 import anthropic
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.enums import FormaPagamento, TipoOperacaoNota
+from app.models.mensagem_whatsapp_processada import MensagemWhatsappProcessada
 from app.models.pre_lancamento_whatsapp import PreLancamentoWhatsapp
 from app.models.usuario import Usuario
 from app.services import auditoria_service
 from app.services.assistente_consulta_service import FERRAMENTAS_LEITURA, FUNCOES_LEITURA
+
+
+def marcar_mensagem_como_processada(db: Session, wamid: str | None) -> bool:
+    """Registra o wamid (id da mensagem no WhatsApp) como processado.
+
+    Retorna False se esse wamid já tinha sido registrado antes — a Cloud API
+    do WhatsApp reentrega webhooks (timeout, resposta não-200 etc.) e sem essa
+    checagem a mesma mensagem seria processada de novo, podendo duplicar um
+    pré-lançamento financeiro. wamid=None (chamada fora do fluxo de webhook,
+    ex: teste direto do serviço) sempre deixa passar, sem registrar nada.
+    """
+    if not wamid:
+        return True
+    try:
+        with db.begin_nested():
+            db.add(MensagemWhatsappProcessada(wamid=wamid))
+            db.flush()
+    except IntegrityError:
+        return False
+    db.commit()
+    return True
+
 
 _MAX_ITERACOES_TOOL_USE = 4
 

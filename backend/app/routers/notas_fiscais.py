@@ -8,14 +8,12 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_write_access
 from app.core.storage import salvar_arquivo_upload
 from app.database import get_db
-from app.models.conta_financeira import ContaFinanceira
 from app.models.enums import StatusNota, StatusProcessamentoNota, TipoNota, TipoOperacaoNota
 from app.models.nota_fiscal import NotaFiscal
 from app.models.usuario import Usuario
 from app.schemas.nota_fiscal import ChaveAcessoManual, NotaFiscalCompletar, NotaFiscalRead
 from app.services import auditoria_service
-from app.services.nota_fiscal_service import NotaFiscalService, obter_ou_criar_parceiro_sentinela
-from app.services.recorrencia_service import RecorrenciaService
+from app.services.nota_fiscal_service import NotaFiscalService
 from app.workers.tasks import processar_nota_fiscal
 
 router = APIRouter(prefix="/notas-fiscais", tags=["notas fiscais"], dependencies=[Depends(get_current_user)])
@@ -88,85 +86,28 @@ async def cadastrar_nota_fiscal(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    chave_acesso = NotaFiscalService().extrair_chave_de_pdf(conteudo)
+    resultado = NotaFiscalService().cadastrar_via_upload(
+        db,
+        conteudo_pdf=conteudo,
+        caminho_pdf=caminho_pdf,
+        centro_custo_id=centro_custo_id,
+        tipo_operacao=tipo_operacao,
+        tipo=tipo,
+        criado_por=usuario_atual.id,
+        parceiro_id=parceiro_id,
+        valor_total=valor_total,
+        data_emissao=data_emissao,
+        numero_nota=numero_nota,
+        serie=serie,
+        despesa_fixa=despesa_fixa,
+        despesa_parcelada=despesa_parcelada,
+        numero_parcelas=numero_parcelas,
+    )
+    if not resultado.ok:
+        codigo_http = status.HTTP_409_CONFLICT if resultado.codigo_erro == "chave_duplicada" else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=codigo_http, detail=resultado.erro)
 
-    if chave_acesso:
-        existente = db.query(NotaFiscal).filter(NotaFiscal.chave_acesso == chave_acesso).first()
-        if existente is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Já existe uma nota cadastrada com esta chave de acesso (id={existente.id})",
-            )
-
-    preenchido_manualmente = parceiro_id is not None and valor_total is not None and data_emissao is not None
-
-    if not chave_acesso and not preenchido_manualmente:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Não foi possível achar a chave de acesso no PDF — informe parceiro, valor e data "
-                "manualmente (campos mínimos quando a extração automática falha)."
-            ),
-        )
-
-    if preenchido_manualmente:
-        # usuário escolheu preencher na mão (ou a chave não foi achada e isso
-        # é obrigatório) — cria a nota já completa, sem esperar a API.
-        nota = NotaFiscal(
-            parceiro_id=parceiro_id,
-            centro_custo_id=centro_custo_id,
-            tipo=tipo,
-            tipo_operacao=tipo_operacao,
-            numero_nota=numero_nota,
-            serie=serie,
-            chave_acesso=chave_acesso,
-            valor_total=valor_total,
-            data_emissao=data_emissao,
-            despesa_fixa=despesa_fixa,
-            despesa_parcelada=despesa_parcelada,
-            numero_parcelas=numero_parcelas,
-            arquivo_pdf_path=caminho_pdf,
-            status_processamento=(
-                StatusProcessamentoNota.consultando_api if chave_acesso else StatusProcessamentoNota.chave_nao_encontrada
-            ),
-            criado_por=usuario_atual.id,
-        )
-        db.add(nota)
-        db.flush()
-
-        parcelas = RecorrenciaService().gerar_parcelas_valor_total(
-            tipo_operacao=nota.tipo_operacao,
-            parceiro_id=nota.parceiro_id,
-            centro_custo_id=nota.centro_custo_id,
-            descricao=f"{'NFe' if nota.tipo == TipoNota.nfe else 'NFSe'} {nota.numero_nota or ''}".strip(),
-            valor_total=nota.valor_total,
-            numero_parcelas=nota.numero_parcelas,
-            data_inicio=nota.data_emissao,
-            nota_fiscal_id=nota.id,
-        )
-        db.add_all(parcelas)
-    else:
-        # fluxo automático de verdade: chave achada, nada preenchido na mão.
-        # parceiro/valor/data ainda não são conhecidos — usa um parceiro
-        # sentinela só pra satisfazer a FK (NOT NULL no schema) até a task
-        # resolver os dados reais via API e gerar as parcelas de verdade.
-        parceiro_sentinela = obter_ou_criar_parceiro_sentinela(db)
-        nota = NotaFiscal(
-            parceiro_id=parceiro_sentinela.id,
-            centro_custo_id=centro_custo_id,
-            tipo=tipo,
-            tipo_operacao=tipo_operacao,
-            chave_acesso=chave_acesso,
-            valor_total=Decimal("0.01"),
-            data_emissao=date.today(),
-            arquivo_pdf_path=caminho_pdf,
-            status_processamento=StatusProcessamentoNota.consultando_api,
-            criado_por=usuario_atual.id,
-        )
-        db.add(nota)
-        db.flush()
-        # parcelas só são geradas quando o valor de verdade chegar (task)
-
+    nota = resultado.nota
     auditoria_service.registrar_criacao(db, usuario_atual.id, "notas_fiscais", nota)
     db.commit()
     db.refresh(nota)
@@ -191,11 +132,7 @@ def informar_chave_manual(
     if nota is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nota fiscal não encontrada")
 
-    duplicada = (
-        db.query(NotaFiscal)
-        .filter(NotaFiscal.chave_acesso == dados.chave_acesso, NotaFiscal.id != nota_id)
-        .first()
-    )
+    duplicada = NotaFiscalService().buscar_nota_pela_chave(db, dados.chave_acesso, excluir_nota_id=nota_id)
     if duplicada is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -237,24 +174,7 @@ def completar_nota_fiscal(
     for campo, valor in dados.model_dump(exclude_unset=True).items():
         setattr(nota, campo, valor)
 
-    tem_parcela = db.query(ContaFinanceira.id).filter(ContaFinanceira.nota_fiscal_id == nota.id).first() is not None
-    parceiro_sentinela = obter_ou_criar_parceiro_sentinela(db)
-    dados_completos = nota.parceiro_id != parceiro_sentinela.id and nota.valor_total > Decimal("0.01")
-
-    if dados_completos and not tem_parcela:
-        parcelas = RecorrenciaService().gerar_parcelas_valor_total(
-            tipo_operacao=nota.tipo_operacao,
-            parceiro_id=nota.parceiro_id,
-            centro_custo_id=nota.centro_custo_id,
-            descricao=f"{'NFe' if nota.tipo == TipoNota.nfe else 'NFSe'} {nota.numero_nota or ''}".strip(),
-            valor_total=nota.valor_total,
-            numero_parcelas=1,
-            data_inicio=nota.data_emissao,
-            nota_fiscal_id=nota.id,
-        )
-        db.add_all(parcelas)
-        if nota.status_processamento in (StatusProcessamentoNota.chave_nao_encontrada, StatusProcessamentoNota.erro_api):
-            nota.status_processamento = StatusProcessamentoNota.concluido
+    NotaFiscalService().gerar_parcela_se_dados_completos(db, nota)
 
     auditoria_service.registrar_edicao(db, usuario_atual.id, "notas_fiscais", antes, nota)
     db.commit()

@@ -6,6 +6,7 @@ from app.models.extrato_importado import ExtratoImportado
 from app.models.lancamento_extrato import LancamentoExtrato
 from app.models.lancamento_recorrente import LancamentoRecorrente
 from app.models.log_auditoria import LogAuditoria
+from app.models.mensagem_whatsapp_processada import MensagemWhatsappProcessada
 from app.models.nota_fiscal import NotaFiscal
 from app.models.parceiro import Parceiro
 from app.models.pre_lancamento_whatsapp import PreLancamentoWhatsapp
@@ -21,6 +22,7 @@ __all__ = [
     "LancamentoExtrato",
     "LancamentoRecorrente",
     "LogAuditoria",
+    "MensagemWhatsappProcessada",
     "NotaFiscal",
     "Parceiro",
     "PreLancamentoWhatsapp",

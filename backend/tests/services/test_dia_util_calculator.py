@@ -46,7 +46,8 @@ class TestDiaUtilCalculator:
 class TestAjustarPorCategoria:
     """Regra de deslocamento por categoria — pedido do usuário: pagamento de
     funcionário conta sábado como dia útil; conta de banco só seg-sex e
-    empurra pra trás (sexta anterior) se cair no fim de semana.
+    empurra pra trás (dia útil anterior) se cair no fim de semana ou em
+    feriado nacional (banco não abre em feriado).
     """
 
     def setup_method(self) -> None:
@@ -75,3 +76,30 @@ class TestAjustarPorCategoria:
     def test_bancaria_dia_util_normal_nao_e_alterado(self) -> None:
         segunda_normal = date(2026, 9, 14)
         assert self.calc.ajustar_por_categoria(segunda_normal, RegraDiaUtilCategoria.bancaria) == segunda_normal
+
+    def test_bancaria_feriado_em_dia_de_semana_empurra_para_dia_util_anterior(self) -> None:
+        independencia_segunda = date(2026, 9, 7)
+        assert self.calc.ajustar_por_categoria(
+            independencia_segunda, RegraDiaUtilCategoria.bancaria
+        ) == date(2026, 9, 4)
+
+    def test_bancaria_feriado_emendado_com_fim_de_semana_empurra_alem_de_dois_dias(self) -> None:
+        # Dia do Trabalho (sexta, 01/05/2026) emendado com o fim de semana:
+        # domingo precisa voltar 3 dias (sáb + sexta feriado + só aí acha
+        # quinta útil) — mais do que a regra de só-fim-de-semana previa.
+        domingo_apos_feriado_na_sexta = date(2026, 5, 3)
+        assert self.calc.ajustar_por_categoria(
+            domingo_apos_feriado_na_sexta, RegraDiaUtilCategoria.bancaria
+        ) == date(2026, 4, 30)
+
+    def test_funcionario_feriado_em_dia_de_semana_empurra_para_proximo_dia_util(self) -> None:
+        independencia_segunda = date(2026, 9, 7)
+        assert self.calc.ajustar_por_categoria(
+            independencia_segunda, RegraDiaUtilCategoria.funcionario
+        ) == date(2026, 9, 8)
+
+    def test_funcionario_feriado_na_sexta_empurra_para_sabado_que_conta_como_util(self) -> None:
+        dia_do_trabalho_sexta = date(2026, 5, 1)
+        assert self.calc.ajustar_por_categoria(
+            dia_do_trabalho_sexta, RegraDiaUtilCategoria.funcionario
+        ) == date(2026, 5, 2)

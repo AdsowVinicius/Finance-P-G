@@ -2,12 +2,9 @@ import { MessageCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../lib/api'
 import { FORMA_PAGAMENTO_LABEL } from '../lib/formaPagamento'
+import { extractApiError } from '../lib/apiError'
+import { formatarMoeda } from '../lib/formatters'
 import type { CentroCusto, Parceiro, PreLancamentoWhatsapp, Usuario } from '../types'
-
-function formatarMoeda(valor: string | null): string {
-  if (valor === null) return '—'
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
 
 function formatarDataHora(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
@@ -40,8 +37,7 @@ function VincularTelefone() {
       setSucesso(true)
       await carregar()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Não foi possível vincular esse número')
+      setErro(extractApiError(err, 'Não foi possível vincular esse número'))
     } finally {
       setSalvando(false)
     }
@@ -112,8 +108,7 @@ function RevisaoForm({ pre, parceiros, centros, onResolvido }: RevisaoFormProps)
       })
       onResolvido()
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setErro(typeof detail === 'string' ? detail : 'Não foi possível confirmar')
+      setErro(extractApiError(err, 'Não foi possível confirmar'))
     } finally {
       setEnviando(false)
     }
