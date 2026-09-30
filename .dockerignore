@@ -1,0 +1,12 @@
+.git
+.claude
+frontend
+pacote-projeto
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+backend/.env
+backend/storage
+backend/tests
+*.md
