@@ -62,6 +62,7 @@ class FormaBaixa(str, enum.Enum):
 class FormatoExtrato(str, enum.Enum):
     ofx = "ofx"
     csv = "csv"
+    open_finance = "open_finance"
 
 
 class StatusImportacao(str, enum.Enum):

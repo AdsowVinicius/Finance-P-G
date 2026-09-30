@@ -198,3 +198,39 @@ Para reconfigurar em outra máquina, ver os comandos em `claude-code-setup-finan
   - Se o usuário preferir preencher na mão (ou a chave não for achada no PDF), o comportamento anterior continua idêntico — nada quebrou pra quem já usava assim.
   - Testado ponta a ponta com a chave de acesso real: upload só com PDF → fornecedor "GCS Comercial LTDA" criado sozinho pelo CNPJ do XML → valor e data reais preenchidos → parcela gerada já com o ajuste de dia útil (05/09, sábado → 08/09, segunda).
 - [x] **Nova regra de negócio** (pedida pelo usuário): parcelamento de nota fiscal já deixa todas as parcelas planejadas prontas automaticamente (já existia via `RecorrenciaService`) — faltava só a **tela** para anexar boleto por parcela antes da baixa, pra servir de revisão do lançamento. Adicionado: botão "Anexar boleto" no Dashboard (por parcela, além do "Dar baixa" que já existia) e uma visão expansível "ver parcelas" na tela de Notas Fiscais mostrando todas as parcelas geradas por uma nota com o mesmo controle de anexar boleto — essa é a tela de revisão do lançamento.
+
+## Certificado digital A1 + SEFAZ (NFeDistribuicaoDFe)
+
+Cadastro do e-CNPJ A1 (`.pfx`) em **Integrações → Certificado digital** (só `admin`/`master`). O arquivo e a senha são guardados **cifrados (Fernet)** no banco — nunca em `STORAGE_DIR`, que é servido publicamente em `/storage`.
+
+1. Gere a chave e coloque no `backend/.env` (guarde uma cópia: sem ela o certificado cadastrado não abre mais e precisa ser reenviado):
+   ```bash
+   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+   ```
+   CERT_ENCRYPTION_KEY=<chave gerada>
+   SEFAZ_AMBIENTE=producao   # ou homologacao
+   ```
+2. `alembic upgrade head` (migration 0011) e reinicie backend + worker.
+3. Suba o certificado na tela. O sistema valida senha, CNPJ (ICP-Brasil), validade, e avisa 30 dias antes de vencer.
+4. **Sincronizar agora** (ou agendado de hora em hora pelo `celery beat`) baixa as NFes emitidas contra o CNPJ para a caixa de entrada `nfes_sefaz_recebidas`. Idempotente: `ult_nsu` só avança depois de gravar e `chave_acesso` é UNIQUE. Respeita a regra da SEFAZ de ~1h de espera sem documento novo (cStat 137/656).
+5. Quando o XML completo de uma chave já está na caixa de entrada, `processar_nota_fiscal` usa ele em vez de chamar o Meu Danfe (custo zero).
+
+**Limite conhecido**: sem *Manifestação do Destinatário* a SEFAZ entrega só o **resumo** (chave, emitente, valor, data) das NFes de terceiros; o XML completo vem após a manifestação (não implementada — exige assinar XML com a chave do A1, a próxima etapa natural).
+
+Se a verificação TLS da SEFAZ falhar (cadeia ICP-Brasil ausente), aponte `SEFAZ_CA_BUNDLE` para um `.pem` com a cadeia. A verificação nunca é desligada. Certificados A1 antigos (cifra RC2) precisam ser reexportados (AES-256) para o OpenSSL 3 abrir.
+
+## Open Finance (Pluggy)
+
+Agregador de Open Finance (o sistema não é instituição regulada, então o acesso direto aos bancos é via agregador). O consentimento e o login no banco acontecem **no widget da Pluggy** — credenciais do banco nunca passam pelo backend.
+
+1. Crie a aplicação em <https://dashboard.pluggy.ai> e coloque no `backend/.env`:
+   ```
+   PLUGGY_CLIENT_ID=...
+   PLUGGY_CLIENT_SECRET=...
+   ```
+2. Em **Integrações → Open Finance**: *Conectar banco* (abre o Pluggy Connect) → *Listar contas do banco* → vincule a conta remota a uma **conta bancária** já cadastrada.
+3. *Sincronizar* (ou automático a cada 4h via `celery beat`) puxa as transações. Elas entram como `ExtratoImportado` (`formato=open_finance`) e seguem **o mesmo caminho do OFX/CSV** (`importacao_extrato_service.persistir_e_conciliar`): idempotente por `(conta, fitid)` — o `fitid` é o id da transação na Pluggy — e com conciliação automática. Só transações `POSTED`; as `PENDING` mudam de id e duplicariam.
+4. Sandbox da Pluggy para testar sem banco real: conector "Pluggy Bank" (credenciais de teste na documentação deles).
+
+Agendamento (sincronização automática de DFe e Open Finance) precisa de um processo extra: `iniciar_celery_beat.bat`.

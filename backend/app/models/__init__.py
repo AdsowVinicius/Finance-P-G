@@ -1,5 +1,7 @@
 from app.models.centro_custo import CentroCusto
+from app.models.certificado_digital import CertificadoDigital
 from app.models.conciliacao import Conciliacao
+from app.models.conexao_open_finance import ConexaoOpenFinance
 from app.models.conta_bancaria import ContaBancaria
 from app.models.conta_financeira import ContaFinanceira
 from app.models.extrato_importado import ExtratoImportado
@@ -7,6 +9,7 @@ from app.models.lancamento_extrato import LancamentoExtrato
 from app.models.lancamento_recorrente import LancamentoRecorrente
 from app.models.log_auditoria import LogAuditoria
 from app.models.mensagem_whatsapp_processada import MensagemWhatsappProcessada
+from app.models.nfe_sefaz_recebida import NfeSefazRecebida
 from app.models.nota_fiscal import NotaFiscal
 from app.models.parceiro import Parceiro
 from app.models.pre_lancamento_whatsapp import PreLancamentoWhatsapp
@@ -27,5 +30,8 @@ __all__ = [
     "Parceiro",
     "PreLancamentoWhatsapp",
     "Projeto",
+    "CertificadoDigital",
+    "ConexaoOpenFinance",
+    "NfeSefazRecebida",
     "Usuario",
 ]

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Numeric, String
+from sqlalchemy import Boolean, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -20,5 +20,11 @@ class ContaBancaria(Base):
     numero_conta: Mapped[str | None] = mapped_column(String(30))
     tipo_conta: Mapped[str | None] = mapped_column(String(30))
     saldo_inicial: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("0"))
+    # Open Finance: conta remota do agregador vinculada a esta conta
+    conexao_open_finance_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conexoes_open_finance.id")
+    )
+    open_finance_conta_id: Mapped[str | None] = mapped_column(String(100), unique=True)
+    open_finance_sincronizado_em: Mapped[datetime | None] = mapped_column()
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

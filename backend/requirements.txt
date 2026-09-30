@@ -28,6 +28,9 @@ pypdf==5.1.0
 ofxparse==0.21
 lxml==5.3.0
 
+# Certificado digital A1 (.pfx) e criptografia em repouso do certificado
+cryptography==46.0.7
+
 # RF16 — assistente de consulta em linguagem natural (Claude Haiku 4.5)
 anthropic==1.5.0
 

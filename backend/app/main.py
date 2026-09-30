@@ -11,6 +11,7 @@ from app.routers import (
     auditoria,
     auth,
     categorias_lancamento,
+    certificados,
     centros_custo,
     conciliacoes,
     contas_bancarias,
@@ -19,6 +20,7 @@ from app.routers import (
     indicadores,
     lancamentos_recorrentes,
     notas_fiscais,
+    open_finance,
     parceiros,
     pre_lancamentos_whatsapp,
     sistema,
@@ -47,6 +49,8 @@ app.include_router(lancamentos_recorrentes.router)
 app.include_router(contas_financeiras.router)
 app.include_router(notas_fiscais.router)
 app.include_router(extratos.router)
+app.include_router(certificados.router)
+app.include_router(open_finance.router)
 app.include_router(conciliacoes.router)
 app.include_router(assistente.router)
 app.include_router(indicadores.router)

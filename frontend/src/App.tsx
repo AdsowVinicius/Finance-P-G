@@ -9,6 +9,7 @@ import { CentrosCustoPage } from './pages/CentrosCustoPage'
 import { ContasBancariasPage } from './pages/ContasBancariasPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ExtratosPage } from './pages/ExtratosPage'
+import { IntegracoesPage } from './pages/IntegracoesPage'
 import { IndicadoresPage } from './pages/IndicadoresPage'
 import { LancamentosRecorrentesPage } from './pages/LancamentosRecorrentesPage'
 import { LoginPage } from './pages/LoginPage'
@@ -59,6 +60,7 @@ function App() {
         <Route path="/lancamentos-recorrentes" element={<LancamentosRecorrentesPage />} />
         <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
         <Route path="/extratos" element={<ExtratosPage />} />
+        <Route path="/integracoes" element={<IntegracoesPage />} />
       </Route>
     </Routes>
   )

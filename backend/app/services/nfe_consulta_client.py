@@ -24,6 +24,7 @@ from lxml import etree
 
 from app.config import settings
 
+_PARSER_SEGURO = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False)
 _NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
 
 _STATUS_EM_ANDAMENTO = {"WAITING", "SEARCHING"}
@@ -128,7 +129,7 @@ class NfeConsultaClient:
 
 def parse_nfe_xml(xml_texto: str) -> DadosNotaFiscalExtraidos:
     try:
-        raiz = etree.fromstring(xml_texto.encode("utf-8"))
+        raiz = etree.fromstring(xml_texto.encode("utf-8"), parser=_PARSER_SEGURO)
     except etree.XMLSyntaxError as exc:
         raise NfeConsultaError(f"XML da NFe malformado: {exc}") from exc
 

@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bot,
   Building2,
+  Landmark,
   FileText,
   LayoutDashboard,
   LineChart,
@@ -32,6 +33,7 @@ const links = [
   { to: '/parceiros', label: 'Parceiros', icon: Users },
   { to: '/centros-custo', label: 'Centros de Custo', icon: Tag },
   { to: '/contas-bancarias', label: 'Contas Bancárias', icon: Building2 },
+  { to: '/integracoes', label: 'Integrações', icon: Landmark },
 ]
 
 const linksAdmin = [

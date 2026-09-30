@@ -39,7 +39,12 @@ from app.models.usuario import Usuario
 from app.services import auditoria_service, transcricao_service, whatsapp_client, whatsapp_service
 from app.services.conciliacao_matcher import ConciliacaoMatcher, LancamentoParaConciliar
 from app.services.extrato_parser_service import ExtratoParserService
-from app.services.nfe_consulta_client import NfeConsultaClient, NfeConsultaError
+from app.services.importacao_extrato_service import persistir_e_conciliar
+from app.services import open_finance_service, sefaz_sync_service
+from app.services.pluggy_client import PluggyClient
+from app.models.conta_bancaria import ContaBancaria
+from app.models.nfe_sefaz_recebida import NfeSefazRecebida
+from app.services.nfe_consulta_client import NfeConsultaClient, NfeConsultaError, parse_nfe_xml
 from app.services.nota_fiscal_service import atualizar_status_conciliacao
 from app.services.nota_fiscal_service import CNPJ_SENTINELA, obter_ou_criar_parceiro_por_cnpj
 from app.services.nota_fiscal_service import NotaFiscalService, obter_ou_criar_parceiro_sentinela
@@ -68,18 +73,33 @@ def processar_nota_fiscal(nota_fiscal_id: str) -> None:
         if nota.status_processamento == StatusProcessamentoNota.concluido:
             return
 
-        client = NfeConsultaClient()
-        if not client.configurado:
-            logger.info("MEUDANFE_API_KEY não configurada — nota %s fica em consultando_api", nota_fiscal_id)
-            return
+        # Se o SEFAZ (certificado A1) já trouxe o XML completo desta chave,
+        # usa ele: zero custo e nenhuma chamada externa.
+        dados = None
+        recebida = (
+            db.query(NfeSefazRecebida)
+            .filter(NfeSefazRecebida.chave_acesso == nota.chave_acesso, NfeSefazRecebida.tipo_documento == "completo")
+            .first()
+        )
+        if recebida is not None and recebida.xml_bruto:
+            try:
+                dados = parse_nfe_xml(recebida.xml_bruto)
+            except NfeConsultaError:
+                logger.warning("XML completo do SEFAZ para %s não pôde ser lido; caindo pro provedor", nota.chave_acesso)
 
-        try:
-            dados = client.consultar_e_extrair(nota.chave_acesso)
-        except NfeConsultaError as exc:
-            logger.warning("erro ao consultar NFe %s: %s", nota.chave_acesso, exc)
-            nota.status_processamento = StatusProcessamentoNota.erro_api
-            db.commit()
-            return
+        if dados is None:
+            client = NfeConsultaClient()
+            if not client.configurado:
+                logger.info("MEUDANFE_API_KEY não configurada — nota %s fica em consultando_api", nota_fiscal_id)
+                return
+
+            try:
+                dados = client.consultar_e_extrair(nota.chave_acesso)
+            except NfeConsultaError as exc:
+                logger.warning("erro ao consultar NFe %s: %s", nota.chave_acesso, exc)
+                nota.status_processamento = StatusProcessamentoNota.erro_api
+                db.commit()
+                return
 
         if dados is None:
             # not found no provedor: fica como erro_api (permite retry manual),
@@ -158,78 +178,7 @@ def processar_importacao_extrato(extrato_importado_id: str, tolerancia_dias: int
             return
 
         try:
-            lancamentos_criados: list[LancamentoExtrato] = []
-            for indice, dto in enumerate(lancamentos_dto, start=1):
-                # idempotência: reimportar o mesmo extrato não duplica (UNIQUE conta_bancaria_id+fitid)
-                existe = (
-                    db.query(LancamentoExtrato)
-                    .filter(
-                        LancamentoExtrato.conta_bancaria_id == extrato.conta_bancaria_id,
-                        LancamentoExtrato.fitid == dto.fitid,
-                    )
-                    .first()
-                )
-                if existe is not None:
-                    continue
-
-                lancamento = LancamentoExtrato(
-                    extrato_importado_id=extrato.id,
-                    conta_bancaria_id=extrato.conta_bancaria_id,
-                    data=dto.data,
-                    descricao=dto.descricao,
-                    valor=dto.valor,
-                    tipo=dto.tipo,
-                    fitid=dto.fitid,
-                )
-                try:
-                    # savepoint por lançamento: um conflito de integridade
-                    # nesta linha (ex: corrida com outra importação do mesmo
-                    # fitid) só descarta esta linha, nunca o lote inteiro.
-                    with db.begin_nested():
-                        db.add(lancamento)
-                        db.flush()
-                except IntegrityError as exc:
-                    logger.warning(
-                        "lançamento #%d do extrato %s ignorado por conflito de integridade: %s",
-                        indice,
-                        extrato.id,
-                        exc,
-                    )
-                    continue
-                lancamentos_criados.append(lancamento)
-
-            matcher = ConciliacaoMatcher(tolerancia_dias=tolerancia_dias)
-            candidatas_pendentes = (
-                db.query(ContaFinanceira)
-                .filter(ContaFinanceira.status.in_([StatusConta.pendente, StatusConta.atrasado]))
-                .all()
-            )
-
-            for lancamento in lancamentos_criados:
-                resultado = matcher.conciliar(
-                    LancamentoParaConciliar(data=lancamento.data, valor=lancamento.valor, tipo=lancamento.tipo),
-                    candidatas_pendentes,
-                )
-                if not resultado.encontrou_match:
-                    continue
-
-                for conta in resultado.contas:
-                    db.add(
-                        Conciliacao(
-                            lancamento_extrato_id=lancamento.id,
-                            conta_financeira_id=conta.id,
-                            valor_conciliado=conta.valor,
-                            tipo_match=resultado.tipo_match,
-                        )
-                    )
-                    conta.status = StatusConta.pago
-                    conta.data_pagamento = lancamento.data
-                    conta.valor_pago = conta.valor
-                    conta.forma_baixa = FormaBaixa.conciliacao_automatica
-                    atualizar_status_conciliacao(db, conta.nota_fiscal_id)
-                    candidatas_pendentes.remove(conta)  # não reusar a mesma conta noutro lançamento deste lote
-
-                lancamento.status_conciliacao = StatusConciliacaoLinha.conciliado
+            persistir_e_conciliar(db, extrato, lancamentos_dto, tolerancia_dias)
 
             extrato.status = StatusImportacao.concluido
             db.commit()
@@ -399,3 +348,52 @@ def processar_midia_nota_whatsapp(
             "completar os dados ou colar a chave manualmente."
         )
     whatsapp_client.enviar_mensagem_texto(telefone, resposta, phone_number_id)
+
+
+@celery_app.task(name="sincronizar_dfe")
+def sincronizar_dfe() -> dict:
+    """Baixa NFes emitidas contra o CNPJ do certificado A1 ativo (SEFAZ).
+    Idempotente: NSU só avança depois de gravar e chave_acesso é UNIQUE."""
+    db = SessionLocal()
+    try:
+        resultado = sefaz_sync_service.sincronizar(db)
+        logger.info("sincronizar_dfe: ok=%s novos=%s %s", resultado.ok, resultado.novos, resultado.mensagem)
+        return {"ok": resultado.ok, "novos": resultado.novos, "mensagem": resultado.mensagem}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="sincronizar_open_finance_conta")
+def sincronizar_open_finance_conta(conta_bancaria_id: str) -> dict:
+    db = SessionLocal()
+    try:
+        conta = db.get(ContaBancaria, uuid.UUID(conta_bancaria_id))
+        if conta is None:
+            return {"ok": False, "erro": "conta não encontrada"}
+        cliente = PluggyClient()
+        if not cliente.configurado:
+            return {"ok": False, "erro": "Pluggy não configurado"}
+        resultado = open_finance_service.sincronizar_conta(db, conta, cliente)
+        if not resultado.ok:
+            logger.warning("Open Finance: conta %s falhou: %s", conta_bancaria_id, resultado.erro)
+        return {"ok": resultado.ok, "novos": resultado.novos, "erro": resultado.erro}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="sincronizar_open_finance_todas")
+def sincronizar_open_finance_todas() -> int:
+    """Agendada (beat): enfileira a sincronização de cada conta vinculada."""
+    db = SessionLocal()
+    try:
+        ids = [
+            str(c.id)
+            for c in db.query(ContaBancaria)
+            .filter(ContaBancaria.open_finance_conta_id.isnot(None), ContaBancaria.ativo.is_(True))
+            .all()
+        ]
+    finally:
+        db.close()
+    for conta_id in ids:
+        sincronizar_open_finance_conta.delay(conta_id)
+    return len(ids)

@@ -47,7 +47,9 @@ Ver `requisitos-funcionais-nao-funcionais.md` pra lista completa.
 
 **Assistente de consulta (RF16)**: chat que responde perguntas tipo "quanto gastei esse mês" consultando o banco em tempo real. Usa Claude Haiku 4.5 via API da Anthropic, chamando um **conjunto fixo de funções de consulta pré-definidas** (`consultar_vencimentos`, `consultar_total_gasto`, `consultar_recebimentos` etc.) — nunca geração livre de SQL, por segurança. Endpoint síncrono no FastAPI, não precisa de fila Celery.
 
-**Fora do MVP (roadmap, não implementar agora)**: funcionários/projetos (mão de obra), receita recorrente por contrato/medição, Open Finance real, certificado digital A1 + Manifestação do Destinatário, lançamento/consulta via WhatsApp (reaproveita o motor do RF16 + pré-lançamento pendente de confirmação), multiempresa, OCR de PDF escaneado.
+**Habilitado depois do MVP**: certificado digital A1 + NFeDistribuicaoDFe (`CertificadoService`, `SefazDfeClient`, `SefazSyncService`; .pfx e senha cifrados com Fernet, nunca em `STORAGE_DIR`) e Open Finance via Pluggy (`PluggyClient`, `OpenFinanceService`; transações reusam `persistir_e_conciliar`, o mesmo caminho do OFX/CSV). Ver README.
+
+**Fora do MVP (roadmap, não implementar agora)**: funcionários/projetos (mão de obra), receita recorrente por contrato/medição, Manifestação do Destinatário (assinatura de XML com o A1), lançamento/consulta via WhatsApp (reaproveita o motor do RF16 + pré-lançamento pendente de confirmação), multiempresa, OCR de PDF escaneado.
 
 ## Testes
 

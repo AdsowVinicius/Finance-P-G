@@ -42,6 +42,25 @@ class Settings(BaseSettings):
     # é o equilíbrio padrão entre velocidade (CPU) e qualidade em português.
     whisper_model_size: str = "small"
 
+    # Certificado digital A1 (roadmap -> ativado). O .pfx e a senha ficam no
+    # banco CIFRADOS com Fernet; a chave vem só daqui. Gere com:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Perder esta chave = reenviar o certificado (ele não é recuperável).
+    cert_encryption_key: str | None = None
+
+    # SEFAZ — NFeDistribuicaoDFe (Ambiente Nacional). "producao" | "homologacao".
+    sefaz_ambiente: str = "producao"
+    # Verificação TLS sempre ligada. No Windows o Python usa o repositório de
+    # certificados do sistema (onde a AC Raiz ICP-Brasil costuma estar); se a
+    # verificação falhar, aponte um .pem com a cadeia da SEFAZ aqui.
+    sefaz_ca_bundle: str | None = None
+
+    # Open Finance via Pluggy (agregador). Sem client_id/secret o módulo
+    # responde 503. Credenciais em https://dashboard.pluggy.ai
+    pluggy_client_id: str | None = None
+    pluggy_client_secret: str | None = None
+    pluggy_base_url: str = "https://api.pluggy.ai"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
